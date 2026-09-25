@@ -154,14 +154,17 @@ export function anyMenuOpen() {
     return !!m && m.style.display !== 'none';
 }
 
-/* ── Window modes: overlay (small, floating) ↔ expanded (comfortable) ──
- * Sizes persist per-mode in localStorage (same store the app already uses
- * for window_state), so no backend settings round-trip is needed. */
+/* ── Window modes: expanded (a normal window, the default) ↔ overlay (a
+ * small floating panel for use over slides; always on top — app.js reacts
+ * to `window-mode-changed`). Sizes persist per mode in localStorage. Every
+ * launch starts as a normal window: an app must not come back floating over
+ * everything because it was left in overlay last time. */
 
-const EXPANDED_DEFAULT = { w: 900, h: 640 };
+const EXPANDED_DEFAULT = { w: 1000, h: 680 };
+const OVERLAY_DEFAULT = { w: 760, h: 260 };
 
 let appWindowRef = null;
-let windowMode = 'overlay';
+let windowMode = 'expanded';
 let applyingMode = false; // guard: programmatic setSize must not overwrite saved sizes
 let resizeSaveTimer = null;
 
@@ -181,25 +184,30 @@ async function saveSizeForMode(mode) {
     } catch { /* size save is best-effort */ }
 }
 
+function savedSize(mode) {
+    try { return JSON.parse(localStorage.getItem(`win_size_${mode}`) || 'null'); } catch { return null; }
+}
+
+async function resizeTo(target) {
+    if (!target) return;
+    const { LogicalSize } = window.__TAURI__.window;
+    applyingMode = true;
+    try { await appWindowRef.setSize(new LogicalSize(target.w, target.h)); } catch { }
+    applyingMode = false;
+}
+
 export async function applyWindowMode(mode) {
     if (!appWindowRef || (mode !== 'overlay' && mode !== 'expanded')) return;
-    const { LogicalSize } = window.__TAURI__.window;
+    if (mode === windowMode) return;
 
-    if (mode !== windowMode) await saveSizeForMode(windowMode); // remember size we leave behind
+    await saveSizeForMode(windowMode); // remember the size we leave behind
     windowMode = mode;
-    localStorage.setItem('window_mode', mode);
     document.body.classList.toggle('expanded', mode === 'expanded');
+    await resizeTo(savedSize(mode) || (mode === 'expanded' ? EXPANDED_DEFAULT : OVERLAY_DEFAULT));
 
-    let target = null;
-    try { target = JSON.parse(localStorage.getItem(`win_size_${mode}`) || 'null'); } catch { }
-    if (!target && mode === 'expanded') target = EXPANDED_DEFAULT;
-    if (target) {
-        applyingMode = true;
-        try { await appWindowRef.setSize(new LogicalSize(target.w, target.h)); } catch { }
-        applyingMode = false;
-    }
     const btn = document.getElementById('btn-window-mode');
-    if (btn) btn.title = mode === 'expanded' ? 'Thu về overlay nhỏ' : 'Mở rộng cửa sổ';
+    if (btn) btn.title = mode === 'expanded' ? 'Thu nhỏ thành cửa sổ nổi (khi chiếu slide)' : 'Về cửa sổ bình thường';
+    document.dispatchEvent(new CustomEvent('window-mode-changed', { detail: { mode } }));
 }
 
 export async function toggleWindowMode() {
@@ -209,6 +217,7 @@ export async function toggleWindowMode() {
 export async function initWindowModes(appWindow) {
     appWindowRef = appWindow;
     document.getElementById('btn-window-mode')?.addEventListener('click', () => toggleWindowMode());
+    localStorage.removeItem('window_mode'); // legacy: launch mode is no longer persisted
 
     // User resizes update the remembered size of the CURRENT mode (debounced).
     try {
@@ -219,6 +228,10 @@ export async function initWindowModes(appWindow) {
         });
     } catch { /* onResized unavailable — sizes just won't persist */ }
 
-    const saved = localStorage.getItem('window_mode');
-    if (saved === 'expanded') await applyWindowMode('expanded');
+    // Start as a normal window at the size the user last gave it.
+    document.body.classList.add('expanded');
+    await resizeTo(savedSize('expanded'));
+    const btn = document.getElementById('btn-window-mode');
+    if (btn) btn.title = 'Thu nhỏ thành cửa sổ nổi (khi chiếu slide)';
+    document.dispatchEvent(new CustomEvent('window-mode-changed', { detail: { mode: windowMode } }));
 }

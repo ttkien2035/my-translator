@@ -39,7 +39,11 @@
   --error: #f87171;
 
   /* Sizing */
-  --control-bar-height: 42px;
+  /* 38 px = macOS "unified compact" toolbar; the traffic lights are centred
+     for this height (tauri.conf.json trafficLightPosition y = 38/2 − 5). */
+  --control-bar-height: 38px;
+  /* Room for the three traffic lights (x 12 + ~54 px of buttons + gap). */
+  --traffic-lights-inset: 78px;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -54,7 +58,9 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* System font: SF on macOS, Segoe on Windows; PingFang SC for Chinese
+     transcripts. Local-only — no web fonts, so it also works offline. */
+  font-family: -apple-system, system-ui, "PingFang SC", "Hiragino Sans GB", "Segoe UI", sans-serif;
   font-size: 14px;
   color: var(--text-primary);
   background: transparent;
@@ -209,11 +215,6 @@ body {
 
 .toggle-btn[aria-pressed="true"] {
   color: var(--text-primary);
-}
-
-.close-btn:hover {
-  background: rgba(248, 113, 113, 0.2);
-  color: var(--error);
 }
 
 /* Button labels */
@@ -906,29 +907,6 @@ body {
 }
 
 /* ─── Resize Handle ────────────────────────────────────── */
-#resize-handle {
-  height: 6px;
-  cursor: ns-resize;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-app-region: no-drag;
-}
-
-#resize-handle::after {
-  content: '';
-  width: 40px;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.1);
-  transition: background var(--transition-fast);
-}
-
-#resize-handle:hover::after {
-  background: rgba(255, 255, 255, 0.25);
-}
-
 /* ═══════════════════════════════════════════════════════════
    SETTINGS VIEW
    ═══════════════════════════════════════════════════════════ */
@@ -2593,3 +2571,23 @@ body.expanded #library-panel { padding: 8px 6%; }
   padding: 4px 16px 8px;
 }
 .seg-mark { margin-right: 4px; }
+
+/* ─── macOS window chrome (native traffic lights over the toolbar) ─────
+   titleBarStyle "Overlay": the web toolbar is the title bar, so its leading
+   edge must leave room for the lights — except in full screen, where macOS
+   hides them. */
+html.platform-macos .control-bar,
+html.platform-macos .settings-header {
+  padding-left: var(--traffic-lights-inset);
+}
+html.platform-macos.is-fullscreen .control-bar {
+  padding-left: 8px;
+}
+html.platform-macos.is-fullscreen .settings-header {
+  padding-left: 12px;
+}
+/* Compact overlay with the toolbar hidden: keep the first line of text out
+   from under the lights. */
+html.platform-macos #overlay-view.compact-mode #transcript-content {
+  padding-top: 30px;
+}

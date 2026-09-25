@@ -151,6 +151,11 @@ pub struct Settings {
     pub llm_model: String,
     /// Local engine: custom GGUF path overriding the bundled Qwen download.
     pub local_llm_gguf: String,
+    /// The first-run engine picker has been answered. Fresh installs start
+    /// `false` (see `Default`); a settings file written before this field
+    /// existed belongs to someone who already chose, so it loads as `true`.
+    #[serde(default = "engine_picker_done_for_existing_file")]
+    pub engine_picker_done: bool,
 
     // ── Microphone chain (Settings → Micro) ──
     /// macOS: capture via Apple's Voice-Processing I/O unit (system AEC/NS/AGC).
@@ -214,6 +219,7 @@ impl Default for Settings {
             llm_api_key: String::new(),
             llm_model: String::new(),
             local_llm_gguf: String::new(),
+            engine_picker_done: false,
             mic_voice_processing: false,
             mic_highpass: true,
             mic_agc: true,
@@ -221,6 +227,12 @@ impl Default for Settings {
             mic_vad: false,
         }
     }
+}
+
+/// Serde default for `engine_picker_done` when the field is missing from an
+/// existing settings file (see the field's doc).
+fn engine_picker_done_for_existing_file() -> bool {
+    true
 }
 
 /// Serde default for `local_tts_speed` (field-level default would give 0.0).
@@ -319,3 +331,21 @@ fn backup_path(path: &std::path::Path) -> std::path::PathBuf {
 
 /// Thread-safe settings state managed by Tauri
 pub struct SettingsState(pub Mutex<Settings>);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn engine_picker_done_defaults() {
+        // Fresh install: no file → Default → the picker shows once.
+        assert!(!Settings::default().engine_picker_done);
+        // A file written before the field existed: the user already chose.
+        let legacy: Settings = serde_json::from_str(r#"{"translation_mode":"local"}"#).unwrap();
+        assert!(legacy.engine_picker_done);
+        assert_eq!(legacy.translation_mode, "local");
+        // Explicit value round-trips.
+        let explicit: Settings = serde_json::from_str(r#"{"engine_picker_done":false}"#).unwrap();
+        assert!(!explicit.engine_picker_done);
+    }
+}

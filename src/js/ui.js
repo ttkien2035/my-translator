@@ -205,7 +205,7 @@ export class TranscriptUI {
           <line x1="12" y1="19" x2="12" y2="23"/>
           <line x1="8" y1="23" x2="16" y2="23"/>
         </svg>
-        <p>Press ▶ to start translating</p>
+        <p>Bấm ▶ Bắt đầu để dịch</p>
         <p class="shortcut-hint">⌘ Enter</p>
       </div>
     `;
@@ -238,7 +238,7 @@ export class TranscriptUI {
             <div class="listening-waves">
                 <span></span><span></span><span></span><span></span><span></span>
             </div>
-            <p>Listening...</p>
+            <p>Đang nghe…</p>
         `;
         this.contentEl.appendChild(indicator);
     }

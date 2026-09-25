@@ -55,10 +55,11 @@ import { Reader } from './reader.js';
 import { updater } from './updater.js';
 import { sessionStore } from './session-store.js';
 import { QWEN_LANGS } from './qwen-langs.js';
-import {
-    initShell, setActivity, getActivity, setLiveBadge, bindMenu, initWindowModes,
-    startAutoHideWatch, stopAutoHideWatch, toggleManualCompact, isAutoHideEnabled, setAutoHideEnabled,
-} from './ui-shell.js';
+// Platform class before first paint so the toolbar never jumps: macOS gets
+// room for the native traffic lights (see main.css "macOS window chrome").
+if (navigator.userAgent.includes('Mac OS X')) document.documentElement.classList.add('platform-macos');
+
+import { initShell, setActivity, getActivity, setLiveBadge, bindMenu, initWindowModes, startAutoHideWatch, stopAutoHideWatch, toggleManualCompact, isAutoHideEnabled, setAutoHideEnabled, getWindowMode } from './ui-shell.js';
 
 const { invoke, Channel } = window.__TAURI__.core;
 const { getCurrentWindow } = window.__TAURI__.window;
@@ -87,7 +88,7 @@ class App {
         this.sessionTargetLang = 'vi';
         this.sessionMode = 'one_way';
         this.ttsEnabled = false;  // TTS runtime toggle
-        this.isPinned = true;     // Always-on-top state
+        this.isPinned = false;    // User's always-on-top choice (📌 / ⌘P); a normal window by default
         this.isCompact = false;   // Compact mode (hide control bar)
         this._closing = false;    // Guard so the exit flush runs exactly once
     }
@@ -156,8 +157,10 @@ class App {
         // Window position restore disabled — causes issues on Retina displays
         // await this._restoreWindowPosition();
 
-        // Window modes: overlay ↔ expanded (⤢), restores last mode + sizes
+        // Window modes: normal window (default) ↔ compact floating overlay (⤢)
+        document.addEventListener('window-mode-changed', () => this._applyAlwaysOnTop());
         initWindowModes(this.appWindow);
+        this._watchFullscreen();
 
         // Check for updates (non-blocking)
         this._initAboutTab();
@@ -166,7 +169,7 @@ class App {
         // Show engine picker on first launch
         this._maybeShowEnginePicker();
 
-        console.log('🌐 My Translator v0.7.1 initialized');
+        console.log('🌐 My Translator initialized');
     }
 
     async _checkPlatformSupport() {
@@ -219,7 +222,7 @@ class App {
             const content = document.getElementById('session-viewer-content')?.textContent || '';
             if (content) {
                 await navigator.clipboard.writeText(content);
-                this._showToast('Copied to clipboard', 'success');
+                this._showToast('Đã chép', 'success');
             }
         });
 
@@ -238,7 +241,7 @@ class App {
         document.getElementById('btn-session-edit-title')?.addEventListener('click', async () => {
             const cur = this._currentViewedSession;
             if (!cur || cur.isLegacy) {
-                this._showToast('Cannot rename legacy sessions', 'error');
+                this._showToast('Không đổi tên được buổi học định dạng cũ', 'error');
                 return;
             }
             const titleEl = document.getElementById('session-viewer-title');
@@ -248,22 +251,15 @@ class App {
             try {
                 await invoke('update_session_title', { id: cur.id, title: newTitle });
                 if (titleEl) titleEl.textContent = newTitle;
-                this._showToast('Renamed', 'success');
+                this._showToast('Đã đổi tên', 'success');
             } catch (err) {
-                this._showToast(`Rename failed: ${err}`, 'error');
+                this._showToast(`Đổi tên thất bại: ${err}`, 'error');
             }
         });
 
         // Export session
         document.getElementById('btn-session-export-srt')?.addEventListener('click', () => this._exportCurrentSession('srt'));
         document.getElementById('btn-session-export-txt')?.addEventListener('click', () => this._exportCurrentSession('txt'));
-
-        // Close button (overlay) — flows through the onCloseRequested hook,
-        // which flushes the session before the app exits.
-        document.getElementById('btn-close').addEventListener('click', async () => {
-            await this._saveWindowPosition();
-            await this.appWindow.close();
-        });
 
         // (Minimize button removed from toolbar — ⌘M / window menu still work)
 
@@ -308,7 +304,7 @@ class App {
                 }
             } catch (err) {
                 console.error('[App] Start/Stop error:', err);
-                this._showToast(`Error: ${err}`, 'error');
+                this._showToast(`Lỗi: ${err}`, 'error');
                 this.isRunning = false;
                 this._updateStartButton();
                 this._updateStatus('error');
@@ -328,7 +324,7 @@ class App {
                 await this.pause();
             } catch (err) {
                 console.error('[App] Pause error:', err);
-                this._showToast(`Error: ${err}`, 'error');
+                this._showToast(`Lỗi: ${err}`, 'error');
             }
         });
 
@@ -350,9 +346,9 @@ class App {
             const text = this.transcriptUI.getPlainText();
             if (text) {
                 await navigator.clipboard.writeText(text);
-                this._showToast('Copied to clipboard', 'success');
+                this._showToast('Đã chép', 'success');
             } else {
-                this._showToast('Nothing to copy', 'info');
+                this._showToast('Chưa có gì để chép', 'info');
             }
         });
 
@@ -361,7 +357,7 @@ class App {
             try {
                 await invoke('open_transcript_dir');
             } catch (err) {
-                this._showToast('Failed to open folder: ' + err, 'error');
+                this._showToast('Không mở được thư mục: ' + err, 'error');
             }
         });
 
@@ -428,7 +424,7 @@ class App {
         document.querySelectorAll('#engine-pill .engine-pill-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (this.isRunning || this.isStarting) {
-                    this._showToast('Pause the session before switching engine', 'error');
+                    this._showToast('Tạm dừng phiên trước khi đổi engine', 'error');
                     return;
                 }
                 this._selectEngineClass(btn.dataset.engineClass);
@@ -675,7 +671,7 @@ class App {
                         }
                     } catch (err) {
                         console.error('[App] Keyboard start/stop error:', err);
-                        this._showToast(`Error: ${err}`, 'error');
+                        this._showToast(`Lỗi: ${err}`, 'error');
                         this.isRunning = false;
                         this._updateStartButton();
                         this._updateStatus('error');
@@ -1266,10 +1262,10 @@ class App {
 
         try {
             await settingsManager.save(settings);
-            this._showToast('Settings saved', 'success');
+            this._showToast('Đã lưu cài đặt', 'success');
             this._showView('overlay');
         } catch (err) {
-            this._showToast(`Failed to save: ${err}`, 'error');
+            this._showToast(`Lưu thất bại: ${err}`, 'error');
         }
     }
 
@@ -1323,7 +1319,7 @@ class App {
         // Block TTS in two-way mode to prevent audio feedback loop
         const translationType = document.getElementById('select-translation-type')?.value;
         if (translationType === 'two_way') {
-            this._showToast('TTS is disabled in two-way mode to prevent audio loop', 'error');
+            this._showToast('Chế độ hai chiều không dùng đọc bản dịch (tránh vòng lặp âm thanh)', 'error');
             return;
         }
 
@@ -1332,7 +1328,7 @@ class App {
         if (provider === 'local' && !this.ttsEnabled) {
             const installed = await this._isLocalVoiceInstalled(settings.local_tts_voice);
             if (!installed) {
-                this._showToast('Download a voice in Settings → TTS → Local', 'error');
+                this._showToast('Tải một giọng đọc trong Cài đặt › Giọng đọc › Local', 'error');
                 this._showView('settings');
                 return;
             }
@@ -1340,17 +1336,17 @@ class App {
 
         // Check credentials for providers that require them (free providers need none)
         if (provider === 'elevenlabs' && !settings.elevenlabs_api_key) {
-            this._showToast('Add ElevenLabs API key in Settings → TTS', 'error');
+            this._showToast('Nhập API key ElevenLabs trong Cài đặt › Giọng đọc', 'error');
             this._showView('settings');
             return;
         }
         if (provider === 'google' && !settings.google_tts_api_key) {
-            this._showToast('Add Google TTS API key in Settings → TTS', 'error');
+            this._showToast('Nhập API key Google TTS trong Cài đặt › Giọng đọc', 'error');
             this._showView('settings');
             return;
         }
         if (provider === 'tiktok' && !settings.tiktok_session_id) {
-            this._showToast('Add a TikTok sessionid in Settings → TTS', 'error');
+            this._showToast('Nhập sessionid TikTok trong Cài đặt › Giọng đọc', 'error');
             this._showView('settings');
             return;
         }
@@ -1375,11 +1371,11 @@ class App {
                 google: 'Google Chirp 3 HD',
                 elevenlabs: 'ElevenLabs',
             }[provider] || provider;
-            this._showToast(`TTS narration ON 🔊 (${label})`, 'success');
+            this._showToast(`Đọc bản dịch: bật 🔊 (${label})`, 'success');
         } else {
             tts.disconnect();
             audioPlayer.stop();
-            this._showToast('TTS narration OFF 🔇', 'success');
+            this._showToast('Đọc bản dịch: tắt 🔇', 'success');
         }
     }
 
@@ -1966,7 +1962,7 @@ class App {
             await this._refreshLocalVoices();
             this._fillLocalVoices(document.getElementById('select-local-lang')?.value || 'vi');
         } catch (err) {
-            this._showToast(`Delete failed: ${err}`, 'error');
+            this._showToast(`Xoá thất bại: ${err}`, 'error');
         }
     }
 
@@ -2362,13 +2358,13 @@ class App {
             this.pause().then(() => {
                 this.currentSource = source;
                 this._updateSourceButtons();
-                this._showToast(`Switched to ${label}`, 'success');
+                this._showToast(`Đã chuyển sang ${label}`, 'success');
                 this.start();
             });
         } else {
             this.currentSource = source;
             this._updateSourceButtons();
-            this._showToast(`Source: ${label}`, 'success');
+            this._showToast(`Nguồn: ${label}`, 'success');
         }
     }
 
@@ -2442,12 +2438,16 @@ class App {
         const picker = document.getElementById('engine-picker');
         if (picker) picker.style.display = 'none';
         this._enginePickerDismissed = true;
+        // Persist: the picker is a first-run question, not a per-launch modal.
+        if (!settingsManager.get().engine_picker_done) {
+            settingsManager.save({ engine_picker_done: true }).catch(e => console.warn('[Picker] save failed:', e));
+        }
     }
 
     _maybeShowEnginePicker() {
-        // Show on each fresh launch until first dismissal (click on a card or
-        // first Start). Once dismissed, the toolbar pill is the only switcher.
-        if (this._enginePickerDismissed) return;
+        // First run only (settings.engine_picker_done). Answered by clicking a
+        // card or by the first Start; afterwards the toolbar pill switches.
+        if (this._enginePickerDismissed || settingsManager.get().engine_picker_done) return;
         if (this.isRunning || this.isStarting) return;
         if (this.transcriptUI && this.transcriptUI.hasContent()) return;
         this._showEnginePicker();
@@ -2744,28 +2744,28 @@ class App {
 
         // Check Soniox API key only for cloud mode
         if (this.translationMode === 'soniox' && !settings.soniox_api_key) {
-            this._showToast('Soniox API key is required. Add it in Settings.', 'error');
+            this._showToast('Cần API key Soniox — nhập trong Cài đặt', 'error');
             this._showView('settings');
             return;
         }
 
         // Check OpenAI API key for openai mode
         if (this.translationMode === 'openai' && !settings.openai_api_key) {
-            this._showToast('OpenAI API key is required. Add it in Settings.', 'error');
+            this._showToast('Cần API key OpenAI — nhập trong Cài đặt', 'error');
             this._showView('settings');
             return;
         }
 
         // Check Qwen API key for qwen mode
         if (this.translationMode === 'qwen' && !settings.qwen_api_key) {
-            this._showToast('Qwen (DashScope) API key is required. Add it in Settings.', 'error');
+            this._showToast('Cần API key Qwen (DashScope) — nhập trong Cài đặt', 'error');
             this._showView('settings');
             return;
         }
 
         // Check ElevenLabs key only if TTS is enabled AND provider is elevenlabs
         if (this.ttsEnabled && settings.tts_provider === 'elevenlabs' && !settings.elevenlabs_api_key) {
-            this._showToast('TTS is ON but ElevenLabs API key is missing. Add it in Settings or disable TTS.', 'error');
+            this._showToast('Đọc bản dịch đang bật nhưng thiếu API key ElevenLabs — nhập trong Cài đặt hoặc tắt đọc', 'error');
             this._showView('settings');
             return;
         }
@@ -2868,7 +2868,7 @@ class App {
         this.openAiClient.onClosed = (reason) => {
             console.warn('[OpenAI Realtime] closed:', reason);
             if (this.isRunning) {
-                this._showToast('OpenAI session closed — reconnecting…', 'success');
+                this._showToast('OpenAI ngắt kết nối — đang nối lại…', 'success');
                 setTimeout(() => {
                     if (this.isRunning) this._startOpenAiMode(settingsManager.get());
                 }, 1000);
@@ -2884,7 +2884,7 @@ class App {
                 audioOutput: false,
             }, this.openAiOutputQueue);
         } catch (err) {
-            this._showToast(`OpenAI connect failed: ${err}`, 'error');
+            this._showToast(`Không kết nối được OpenAI: ${err}`, 'error');
             await this.pause();
             return;
         }
@@ -2908,7 +2908,7 @@ class App {
             console.log('[OpenAI] start_capture invoked OK');
         } catch (err) {
             console.error('Failed to start audio capture:', err);
-            this._showToast(`Audio error: ${err}`, 'error');
+            this._showToast(`Lỗi âm thanh: ${err}`, 'error');
             await this.pause();
         }
     }
@@ -2945,7 +2945,7 @@ class App {
         this.qwenClient.onClosed = (reason) => {
             console.warn('[Qwen Realtime] closed:', reason);
             if (this.isRunning) {
-                this._showToast('Qwen session closed — reconnecting…', 'success');
+                this._showToast('Qwen ngắt kết nối — đang nối lại…', 'success');
                 setTimeout(() => {
                     if (this.isRunning) this._startQwenMode(settingsManager.get());
                 }, 1000);
@@ -2967,7 +2967,7 @@ class App {
                 targetLanguage: settings.target_language,
             });
         } catch (err) {
-            this._showToast(`Qwen connect failed: ${err}`, 'error');
+            this._showToast(`Không kết nối được Qwen: ${err}`, 'error');
             await this.pause();
             return;
         }
@@ -2991,7 +2991,7 @@ class App {
             console.log('[Qwen] start_capture invoked OK');
         } catch (err) {
             console.error('Failed to start audio capture:', err);
-            this._showToast(`Audio error: ${err}`, 'error');
+            this._showToast(`Lỗi âm thanh: ${err}`, 'error');
             await this.pause();
         }
     }
@@ -3037,7 +3037,7 @@ class App {
             console.log('[App] Audio capture started successfully');
         } catch (err) {
             console.error('Failed to start audio capture:', err);
-            this._showToast(`Audio error: ${err}`, 'error');
+            this._showToast(`Lỗi âm thanh: ${err}`, 'error');
             await this.pause();
         }
     }
@@ -3134,7 +3134,7 @@ class App {
             console.log('[App] Audio capture started');
         } catch (err) {
             console.error('Audio capture failed:', err);
-            this._showToast(`Audio: ${err}`, 'error');
+            this._showToast(`Âm thanh: ${err}`, 'error');
             await this.pause();
         }
     }
@@ -3256,9 +3256,9 @@ class App {
         const result = await sessionStore.persist();
         if (result === 'saved') {
             const n = sessionStore.totalSegmentCount();
-            this._showToast(`Saved ${n} segment${n === 1 ? '' : 's'}`, 'success');
+            this._showToast(`Đã lưu ${n} câu`, 'success');
         } else if (result === 'failed') {
-            this._showToast('Save failed — session kept in memory', 'error');
+            this._showToast('Lưu thất bại — phiên vẫn giữ trong bộ nhớ', 'error');
         }
         // 'skipped' → data already on disk or nothing to save; no toast.
 
@@ -3273,15 +3273,15 @@ class App {
         if (this.isRunning) await this.pause();
 
         if (sessionStore.isEmpty()) {
-            this._showToast('Nothing to save', 'success');
+            this._showToast('Chưa có gì để lưu', 'success');
         } else {
             const result = await sessionStore.endSession();
             if (result === 'failed') {
                 // Keep the in-memory session intact so the user can retry Stop.
-                this._showToast('Save failed — session kept in memory', 'error');
+                this._showToast('Lưu thất bại — phiên vẫn giữ trong bộ nhớ', 'error');
                 return;
             }
-            this._showToast('Session saved — next start creates a new one', 'success');
+            this._showToast('Đã lưu buổi học — lần Bắt đầu sau sẽ tạo buổi mới', 'success');
         }
 
         // Reset session identity: fresh ID + current settings so the next Start
@@ -3386,10 +3386,10 @@ class App {
         try {
             const path = await invoke('save_transcript', { content });
             const filename = path.split('/').pop();
-            this._showToast(`Saved: ${filename}`, 'success');
+            this._showToast(`Đã lưu: ${filename}`, 'success');
         } catch (err) {
             console.error('Failed to save transcript:', err);
-            this._showToast('Failed to save transcript', 'error');
+            this._showToast('Lưu bản dịch thất bại', 'error');
         }
     }
 
@@ -3513,19 +3513,19 @@ class App {
         switch (status) {
             case 'connecting':
                 dot.classList.add('connecting');
-                text.textContent = 'Connecting...';
+                text.textContent = 'Đang kết nối…';
                 break;
             case 'connected':
                 dot.classList.add('connected');
-                text.textContent = 'Listening';
+                text.textContent = 'Đang nghe';
                 break;
             case 'disconnected':
                 dot.classList.add('disconnected');
-                text.textContent = 'Ready';
+                text.textContent = 'Sẵn sàng';
                 break;
             case 'error':
                 dot.classList.add('error');
-                text.textContent = 'Error';
+                text.textContent = 'Lỗi';
                 break;
         }
         // Live tab shows a red badge while a session runs so the user sees
@@ -3586,10 +3586,36 @@ class App {
 
     async _togglePin() {
         this.isPinned = !this.isPinned;
-        await this.appWindow.setAlwaysOnTop(this.isPinned);
+        await this._applyAlwaysOnTop();
+        this._showToast(this.isPinned ? 'Đã ghim — luôn nằm trên các cửa sổ khác' : 'Bỏ ghim — cửa sổ bình thường', 'success');
+    }
+
+    /**
+     * Full screen hides the traffic lights, so the toolbar drops their inset
+     * (html.is-fullscreen). Checked once per resize burst, not per event.
+     */
+    _watchFullscreen() {
+        if (!document.documentElement.classList.contains('platform-macos')) return;
+        let t = null;
+        const sync = async () => {
+            try {
+                document.documentElement.classList.toggle('is-fullscreen', await this.appWindow.isFullscreen());
+            } catch { /* not critical */ }
+        };
+        this.appWindow.onResized(() => { clearTimeout(t); t = setTimeout(sync, 150); }).catch(() => {});
+        sync();
+    }
+
+    /**
+     * Always-on-top = the user's pin, or the compact overlay (⤢), which is a
+     * floating panel for use over slides and so always floats. Leaving the
+     * overlay restores the user's own choice.
+     */
+    async _applyAlwaysOnTop() {
+        const onTop = this.isPinned || getWindowMode() === 'overlay';
+        try { await this.appWindow.setAlwaysOnTop(onTop); } catch (e) { console.warn('[Window] setAlwaysOnTop failed:', e); }
         const btn = document.getElementById('btn-pin');
-        if (btn) btn.classList.toggle('active', this.isPinned);
-        this._showToast(this.isPinned ? 'Pinned on top' : 'Unpinned — window can go behind other apps', 'success');
+        if (btn) btn.classList.toggle('active', onTop);
     }
 
     // ─── Compact Mode ───────────────────────────────
@@ -3664,7 +3690,7 @@ class App {
                     // Block deleting the active session — the next autosave would
                     // just resurrect the file the user deleted.
                     if (id === sessionStore.id) {
-                        this._showToast('Cannot delete the active session — Stop it first', 'error');
+                        this._showToast('Không xoá được buổi đang chạy — Dừng trước', 'error');
                         return;
                     }
                     if (!confirm('Delete this session permanently?')) return;
@@ -3672,7 +3698,7 @@ class App {
                         await invoke('delete_session', { id });
                         await this._showSessions();
                     } catch (err) {
-                        this._showToast(`Delete failed: ${err}`, 'error');
+                        this._showToast(`Xoá thất bại: ${err}`, 'error');
                     }
                 });
             });
@@ -3750,7 +3776,7 @@ class App {
     async _exportCurrentSession(format) {
         const cur = this._currentViewedSession;
         if (!cur || cur.isLegacy) {
-            this._showToast('Cannot export legacy sessions', 'error');
+            this._showToast('Không xuất được buổi học định dạng cũ', 'error');
             return;
         }
         try {
@@ -3765,9 +3791,9 @@ class App {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            this._showToast(`Exported .${format}`, 'success');
+            this._showToast(`Đã xuất .${format}`, 'success');
         } catch (err) {
-            this._showToast(`Export failed: ${err}`, 'error');
+            this._showToast(`Xuất thất bại: ${err}`, 'error');
         }
     }
 

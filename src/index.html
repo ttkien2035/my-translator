@@ -1,23 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Translator</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 
-<body>
+<body class="expanded">
   <!-- ═══════════════════ OVERLAY VIEW ═══════════════════ -->
   <div id="overlay-view" class="view active">
     <!-- Drag Region (title bar area) -->
     <div id="drag-region" data-tauri-drag-region>
       <div class="control-bar" data-tauri-drag-region>
-        <button id="btn-settings" class="icon-btn" title="Settings">
+        <button id="btn-settings" class="icon-btn" title="Cài đặt (⌘,)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3" />
             <path
@@ -29,7 +26,7 @@
         <!-- Activity switcher — the 3 first-class spaces of the app -->
         <div class="activity-switcher">
           <button class="activity-tab active" data-activity="live" title="Dịch trực tiếp" type="button">
-            🎙 Live<span id="live-tab-badge" class="live-tab-badge"></span>
+            🎙 Trực tiếp<span id="live-tab-badge" class="live-tab-badge"></span>
           </button>
           <button class="activity-tab" data-activity="read" title="Đọc văn bản (TTS)" type="button">📖 Đọc</button>
           <button class="activity-tab" data-activity="library" title="Sessions đã lưu" type="button">📚 Thư viện</button>
@@ -46,19 +43,13 @@
           </svg>
         </button>
 
-        <button id="btn-pin" class="icon-btn active" title="Pin on top (always visible)">
+        <button id="btn-pin" class="icon-btn" title="Ghim trên các cửa sổ khác (⌘P)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 17v5" />
             <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76z" />
           </svg>
         </button>
 
-        <button id="btn-close" class="icon-btn close-btn" title="Close">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
       </div>
     </div>
 
@@ -66,7 +57,7 @@
     <div id="transcript-container" class="activity-panel active" data-activity="live" data-tauri-drag-region>
       <!-- Live status row: engine · state · languages · audio source -->
       <div class="live-status-row">
-        <div class="engine-pill" id="engine-pill" title="Click to switch engine">
+        <div class="engine-pill" id="engine-pill" title="Chọn engine dịch">
           <!-- One button per engine; the dot shows readiness (key / Apple Silicon).
                Model + key config live in Settings → Model / Engine dịch. -->
           <button class="engine-pill-btn active" data-engine-class="soniox" type="button" title="Soniox">
@@ -84,7 +75,7 @@
             <span class="engine-pill-label">OpenAI</span>
             <span class="engine-pill-dot"></span>
           </button>
-          <button class="engine-pill-btn" data-engine-class="local" type="button" title="Local MLX (offline)">
+          <button class="engine-pill-btn" data-engine-class="local" type="button" title="Local (offline, trên máy)">
             <span class="engine-pill-icon">🖥️</span>
             <span class="engine-pill-label">Local</span>
             <span class="engine-pill-dot"></span>
@@ -92,13 +83,13 @@
         </div>
         <div class="status-area">
           <span id="status-indicator" class="status-dot disconnected"></span>
-          <span id="status-text" class="status-text">Ready</span>
+          <span id="status-text" class="status-text">Sẵn sàng</span>
         </div>
         <span id="live-lang" class="live-lang" title="Cặp ngôn ngữ (đổi trong Cài đặt)"></span>
         <select id="select-live-profile" class="source-select" title="Hồ sơ môn học (từ điển + ngữ cảnh)" style="display:none"></select>
         <select id="select-audio-source" class="source-select" title="Nguồn âm thanh (⌘1/2/3)">
-          <option value="system">🔊 System</option>
-          <option value="microphone">🎤 Mic</option>
+          <option value="system">🔊 Âm thanh máy</option>
+          <option value="microphone">🎤 Micro</option>
           <option value="both">🔊+🎤 Cả hai</option>
         </select>
       </div>
@@ -112,7 +103,7 @@
             <line x1="12" y1="19" x2="12" y2="23" />
             <line x1="8" y1="23" x2="16" y2="23" />
           </svg>
-          <p>Press ▶ to start translating</p>
+          <p>Bấm ▶ Bắt đầu để dịch</p>
         </div>
       </div>
 
@@ -128,7 +119,7 @@
 
       <!-- Live action row: primary start/stop + pause + TTS + overflow menu -->
       <div class="live-action-row">
-        <button id="btn-start" class="primary-action-btn" title="Start/Stop (⌘↩)">
+        <button id="btn-start" class="primary-action-btn" title="Bắt đầu / Dừng (⌘↩)">
           <svg id="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
@@ -138,14 +129,14 @@
           <span id="btn-start-label">Bắt đầu</span>
         </button>
 
-        <button id="btn-pause" class="action-btn" title="Pause (keep session)" disabled>
+        <button id="btn-pause" class="action-btn" title="Tạm dừng (giữ phiên)" disabled>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="4" width="4" height="16" rx="1" />
             <rect x="14" y="4" width="4" height="16" rx="1" />
           </svg>
         </button>
 
-        <button id="btn-tts" class="tts-action-btn" title="TTS Narration (⌘T)">
+        <button id="btn-tts" class="tts-action-btn" title="Đọc bản dịch (⌘T)">
           <svg id="icon-tts-off" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             <line x1="9" y1="10" x2="15" y2="10" />
@@ -165,22 +156,22 @@
           </button>
           <div id="more-menu" class="more-menu" style="display:none">
             <button id="btn-notes" class="more-menu-item" type="button">📝 Ghi chú (⌘⇧N)</button>
-            <button id="btn-copy" class="more-menu-item" type="button">📋 Copy transcript</button>
+            <button id="btn-copy" class="more-menu-item" type="button">📋 Chép bản dịch</button>
             <button id="btn-clear" class="more-menu-item" type="button">🗑 Xóa transcript</button>
             <div class="more-menu-sep"></div>
             <div class="more-menu-label">Hiển thị</div>
             <div class="floating-controls">
               <div class="font-controls">
-                <button id="btn-font-down" class="float-btn" title="Decrease font size">A−</button>
+                <button id="btn-font-down" class="float-btn" title="Chữ nhỏ hơn">A−</button>
                 <span id="font-size-display" class="font-size-label">16</span>
-                <button id="btn-font-up" class="float-btn" title="Increase font size">A+</button>
+                <button id="btn-font-up" class="float-btn" title="Chữ lớn hơn">A+</button>
               </div>
               <div class="color-controls">
-                <button class="color-dot active" data-color="#ffffff" title="White" style="background:#ffffff;"></button>
-                <button class="color-dot" data-color="#ffd700" title="Yellow" style="background:#ffd700;"></button>
-                <button class="color-dot" data-color="#00e5ff" title="Cyan" style="background:#00e5ff;"></button>
+                <button class="color-dot active" data-color="#ffffff" title="Trắng" style="background:#ffffff;"></button>
+                <button class="color-dot" data-color="#ffd700" title="Vàng" style="background:#ffd700;"></button>
+                <button class="color-dot" data-color="#00e5ff" title="Xanh" style="background:#00e5ff;"></button>
               </div>
-              <button id="btn-view-mode" class="float-btn" title="Toggle dual view">
+              <button id="btn-view-mode" class="float-btn" title="Hai cột: gốc | dịch">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="3" width="7" height="18" rx="1" />
                   <rect x="14" y="3" width="7" height="18" rx="1" />
@@ -195,44 +186,43 @@
         </div>
       </div>
 
-      <!-- Engine picker — shown before the first session each launch.
-           Two cards because OpenAI Realtime is structurally different from
-           Soniox/Local (text+voice fused, no two-way, no custom TTS). -->
+      <!-- Engine picker — first run only (settings.engine_picker_done).
+           OpenAI Realtime is left out on purpose; it stays in Settings. -->
       <div id="engine-picker" class="engine-picker" style="display:none">
-        <p class="engine-picker-title">Choose translation mode</p>
+        <p class="engine-picker-title">Chọn cách dịch</p>
         <div class="engine-cards">
-          <button class="engine-card" data-engine-class="standard" type="button">
+          <button class="engine-card" data-engine-class="soniox" type="button">
             <div class="engine-card-icon">☁️</div>
-            <div class="engine-card-name">Standard</div>
-            <div class="engine-card-meta">Soniox / Local · ~$0.12/hr</div>
+            <div class="engine-card-name">Soniox</div>
+            <div class="engine-card-meta">Trực tuyến · ~0,12 $/giờ</div>
             <ul class="engine-card-feats">
-              <li>70+ languages</li>
-              <li>Two-way mode</li>
-              <li>Custom TTS</li>
+              <li>Chính xác nhất, ~2 giây</li>
+              <li>Dùng từ điển hồ sơ môn học</li>
+              <li>Cần API key Soniox</li>
             </ul>
           </button>
-          <button class="engine-card" data-engine-class="openai" type="button">
-            <div class="engine-card-icon">⚡</div>
-            <div class="engine-card-name">OpenAI Realtime</div>
-            <div class="engine-card-meta">~$4/hr · text-only</div>
+          <button class="engine-card" data-engine-class="local" type="button">
+            <div class="engine-card-icon">🖥️</div>
+            <div class="engine-card-name">Local</div>
+            <div class="engine-card-meta">Trên máy · miễn phí</div>
             <ul class="engine-card-feats">
-              <li>13 languages</li>
-              <li>Continuous delta captions</li>
-              <li>Most idiomatic output</li>
+              <li>Không cần mạng</li>
+              <li>~2–3 giây sau mỗi câu</li>
+              <li>Tải model 2,3 GB một lần</li>
             </ul>
           </button>
           <button class="engine-card" data-engine-class="qwen" type="button">
             <div class="engine-card-icon">🌏</div>
-            <div class="engine-card-name">Qwen LiveTranslate Flash</div>
-            <div class="engine-card-meta">Free preview · text-only</div>
+            <div class="engine-card-name">Qwen</div>
+            <div class="engine-card-meta">Trực tuyến · miễn phí (thử nghiệm)</div>
             <ul class="engine-card-feats">
-              <li>60+ languages</li>
-              <li>Fastest first token (~4s)</li>
-              <li>Alibaba DashScope (Singapore)</li>
+              <li>Vào được từ Trung Quốc không cần VPN</li>
+              <li>~4 giây, chỉ văn bản</li>
+              <li>Cần API key DashScope</li>
             </ul>
           </button>
         </div>
-        <p class="engine-picker-hint">Switch any time from the engine pill in the toolbar.</p>
+        <p class="engine-picker-hint">Đổi lúc nào cũng được bằng nút engine trên thanh công cụ.</p>
       </div>
     </div>
 
@@ -261,8 +251,8 @@
       <!-- Session list -->
       <div id="sessions-list-panel" class="sessions-body">
         <div class="sessions-search-row">
-          <input id="input-session-search" type="text" placeholder="Search sessions..." class="sessions-search-input" />
-          <button id="btn-open-transcripts" class="icon-btn small" title="Open saved transcripts folder in Finder">
+          <input id="input-session-search" type="text" placeholder="Tìm trong các buổi học…" class="sessions-search-input" />
+          <button id="btn-open-transcripts" class="icon-btn small" title="Mở thư mục buổi học trong Finder">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
             </svg>
@@ -274,22 +264,22 @@
       <!-- Session viewer (shown when a session is selected) -->
       <div id="session-viewer" class="sessions-body" style="display:none">
         <div class="session-viewer-header">
-          <button id="btn-session-back-to-list" class="icon-btn" title="Back to list">
+          <button id="btn-session-back-to-list" class="icon-btn" title="Về danh sách">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="19" y1="12" x2="5" y2="12" />
               <polyline points="12 19 5 12 12 5" />
             </svg>
           </button>
           <span id="session-viewer-title" class="session-viewer-title-text"></span>
-          <button id="btn-session-edit-title" class="icon-btn small" title="Rename session">
+          <button id="btn-session-edit-title" class="icon-btn small" title="Đổi tên">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
-          <button id="btn-session-export-srt" class="btn-secondary small" title="Export as .srt">.srt</button>
-          <button id="btn-session-export-txt" class="btn-secondary small" title="Export as .txt">.txt</button>
-          <button id="btn-session-copy" class="session-copy-btn" title="Copy content">
+          <button id="btn-session-export-srt" class="btn-secondary small" title="Xuất .srt">.srt</button>
+          <button id="btn-session-export-txt" class="btn-secondary small" title="Xuất .txt">.txt</button>
+          <button id="btn-session-copy" class="session-copy-btn" title="Chép nội dung">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
@@ -301,22 +291,20 @@
       </div>
     </div>
 
-    <!-- Resize Handle -->
-    <div id="resize-handle"></div>
   </div>
 
   <!-- ═══════════════════ SETTINGS VIEW ═══════════════════ -->
   <div id="settings-view" class="view">
     <div id="settings-drag" data-tauri-drag-region>
       <div class="settings-header">
-        <button id="btn-back" class="icon-btn" title="Back">
+        <button id="btn-back" class="icon-btn" title="Quay lại">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="19" y1="12" x2="5" y2="12" />
             <polyline points="12 19 5 12 12 5" />
           </svg>
         </button>
-        <h2>Settings</h2>
-        <button id="btn-save-settings-top" class="icon-btn save-btn-top" title="Save & Close">
+        <h2>Cài đặt</h2>
+        <button id="btn-save-settings-top" class="icon-btn save-btn-top" title="Lưu và đóng">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="20 6 9 17 4 12" />
           </svg>

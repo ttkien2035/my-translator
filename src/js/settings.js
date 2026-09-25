@@ -55,6 +55,8 @@ const DEFAULT_SETTINGS = {
   llm_api_key: '',
   llm_model: '',
   local_llm_gguf: '',
+  // First-run engine picker answered (Rust: fresh install false, existing file true)
+  engine_picker_done: false,
   // Settings → Micro (mirror settings.rs defaults)
   mic_voice_processing: false,
   mic_highpass: true,

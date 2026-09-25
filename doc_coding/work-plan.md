@@ -56,6 +56,56 @@ Tiêu chí QA cho Commit B (QA kiểm bằng screenshot trên Mac):
 - Mở app lần 2 không hiện modal chọn engine.
 - Font là SF; mở app khi offline không đổi font.
 
+### Trạng thái Commit B — B1 đã làm (kỹ sư trưởng, 2026-09-25)
+
+Commit B tách hai phần để U6 revert riêng được: **B1** = U2, U3, U1, U5, U4 cùng Việt hoá màn hình chính; **B2** = U6 (xem dưới).
+
+- **U2:** cửa sổ bình thường 1000×680 (tối thiểu 720×420), `alwaysOnTop: false`, 📌 không bật mặc định. App **luôn mở ở cửa sổ thường**, không nhớ chế độ overlay giữa các lần mở; kích thước theo từng chế độ vẫn nhớ. Chế độ ⤢ overlay (760×260) là cửa sổ nổi nên tự nằm trên cùng; về cửa sổ thường thì trả lại lựa chọn 📌 của người dùng.
+- **U3:** font `-apple-system, system-ui, "PingFang SC", "Hiragino Sans GB", "Segoe UI", sans-serif`. Đã bỏ Google Fonts khỏi HTML và CSP, `lang="vi"`.
+- **U1:** `decorations: true`, `titleBarStyle: "Overlay"`, `hiddenTitle: true`, `trafficLightPosition {x: 12, y: 14}`, toolbar cao **38 px** (làm luôn ở B1 vì vị trí đèn phụ thuộc chiều cao). Chừa 78 px bên trái cho toolbar và header Cài đặt; toàn màn hình thì bỏ. Ở compact khi toolbar ẩn, transcript chừa 30 px phía trên. Đã bỏ nút × tự vẽ (nút đỏ đi qua `onCloseRequested`, vẫn lưu phiên) và `#resize-handle` chết.
+- **U5:** cờ `engine_picker_done`: cài mới là `false`; file settings cũ chưa có trường này nạp thành `true` (không hiện lại). Đặt `true` khi chọn thẻ hoặc bấm Bắt đầu lần đầu.
+- **U4:** modal tiếng Việt, thẻ **Soniox → Local → Qwen**, không có OpenAI.
+- **Việt hoá:** mọi chữ và tooltip trên màn hình chính, nhãn trạng thái (Sẵn sàng / Đang kết nối… / Đang nghe / Lỗi), 44 toast trên các luồng chính. Cài đặt chi tiết còn một số chữ tiếng Anh; ngoài phạm vi B1.
+
+**QA chụp màn hình B1 (thêm vào tiêu chí gốc):**
+
+- Traffic lights có **nằm giữa theo chiều dọc** toolbar 38 px không. Số y = 14 lấy từ đo đạc của một app Tauri khác (tâm ≈ y + 5), chưa đo trên máy này. Lệch thì báo số px để chỉnh.
+- Khoảng 78 px có đủ cho 3 đèn không, và nút Cài đặt không bị che.
+- Vào/ra toàn màn hình: toolbar dời trái/phải đúng.
+- Kéo cửa sổ bằng toolbar và khoảng trống. Double-click toolbar sẽ luôn phóng to, không theo cài đặt hệ thống; đây là giới hạn của `data-tauri-drag-region`.
+
+### Phạm vi B2 (sửa theo nghiên cứu HIG/WebKit và yêu cầu "nhẹ tài nguyên" của Kiên)
+
+**Không dùng vibrancy** (`windowEffects` + `transparent`). Kiên yêu cầu app nhẹ; chỉ model Local được tốn tài nguyên. Nền đặc dùng màu hệ thống.
+
+1. Bỏ toàn bộ `backdrop-filter: blur(...)` (6 chỗ, có cả view chính). Cửa sổ không trong suốt nên blur không nhìn thấy mà vẫn tốn GPU mỗi khung hình.
+2. Bỏ 4 animation vô hạn chạy lâu: nút ghi âm (suốt phiên), con trỏ nhấp nháy (suốt phiên), badge cập nhật (mãi mãi), sóng "đang nghe". Giữ các animation vài giây. Tôn trọng `prefers-reduced-motion`.
+3. Màu: `color-scheme: dark`, màu chữ/viền theo `-apple-system-label` và `-apple-system-separator` (theo nghiên cứu, chạy được trong WKWebView), accent `#0A84FF`. WebKit không lộ accent thật của người dùng; muốn có phải đọc bằng Rust (để sau). Chưa làm light mode.
+4. Bỏ các dấu hiệu "trang web": `cursor: default` (không dùng bàn tay trừ link), không cho chọn chữ trên chrome (chỉ chọn được trong transcript), `:focus-visible`, bỏ `::-webkit-scrollbar` tuỳ biến để dùng thanh cuộn overlay gốc, chặn menu chuột phải trừ ô nhập, `overscroll-behavior: none`.
+5. Bo góc card 10–12 px, control 28 px theo HIG.
+6. **Đề xuất, cần Kiên duyệt:** HIG khuyên không đặt nút điều khiển ở đáy cửa sổ. Chuyển ▶ Bắt đầu / TTS / ⋯ lên nhóm cuối của toolbar, bỏ hàng nút dưới đáy.
+
+### Commit C — transcript trực tiếp vẽ tăng dần (mới)
+
+Hiện mỗi token dựng lại HTML toàn vùng transcript, và vùng này bị cắt còn ~800 ký tự. Trong cửa sổ thường 1000×680 vì vậy chỉ thấy vài câu cuối, không cuộn lên được. `TranscriptUI.sessionLog` giữ mọi câu mà không ai đọc (rò rỉ bộ nhớ, và quét tuyến tính mỗi câu).
+
+- Câu đã chốt gắn thêm 1 node; token đang nhận dạng chỉ sửa 1 node. Cuộn xem lại cả buổi, dùng `content-visibility: auto`. Xoá `sessionLog`.
+- **Tiêu chí QA:** CPU của WebView khi Soniox/Local đang nhận chữ liên tục ≤ bản hiện tại. Sau phiên giả lập 2 giờ (feed wav lặp), RSS tăng < 30 MB và số node DOM tăng tuyến tính theo số câu (không nhân bản). Cuộn lên thì không bị kéo xuống khi có chữ mới; ở đáy thì tự cuộn theo.
+
+### Commit D — màn hình ôn bài trong Thư viện (mới, Kiên yêu cầu: "dịch cả buổi thì phải lưu lại để đọc lại, take note")
+
+Thay khung xem Markdown chỉ đọc bằng màn hình ôn bài:
+
+- Từng câu (dịch + gốc + giờ).
+- Bấm để đánh ⭐ ❓ 📝.
+- Khung ghi chú sửa được sau giờ học.
+- Lọc theo dấu, tìm trong buổi, bấm mục đánh dấu để nhảy tới câu.
+- Dùng `SessionStore.resume(id)` + `persist()` (lệnh `save_session` atomic hiện có), không thêm lệnh Rust.
+- Buổi đang chạy trực tiếp thì chỉ xem.
+- **Tiêu chí QA:** sửa ghi chú hoặc dấu → thoát app → mở lại → còn nguyên, và `.md` có mục *Đánh dấu* / *Ghi chú* cập nhật. Buổi 2 000 câu mở < 300 ms, cuộn không giật. Không sửa được buổi đang dịch.
+
+Thứ tự: **B1 → B2 → D → C**.
+
 ---
 
 ## Bài kiểm thử QA sẽ chạy (tiêu chí pass/fail)

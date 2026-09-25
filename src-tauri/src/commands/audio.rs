@@ -212,6 +212,7 @@ fn mic_options(settings: &SettingsState) -> MicOptions {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     MicOptions {
+        voice_processing: s.mic_voice_processing,
         highpass: s.mic_highpass,
         agc: s.mic_agc,
         denoise_model: s

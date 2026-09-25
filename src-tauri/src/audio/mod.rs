@@ -3,6 +3,8 @@ pub mod microphone;
 pub mod resampler;
 
 #[cfg(target_os = "macos")]
+pub mod mic_vpio;
+#[cfg(target_os = "macos")]
 pub mod system_audio;
 
 #[cfg(target_os = "windows")]

@@ -119,6 +119,8 @@ pub struct Settings {
     pub llm_model: String,
 
     // ── Microphone chain (Settings → Micro) ──
+    /// macOS: capture via Apple's Voice-Processing I/O unit (system AEC/NS/AGC).
+    pub mic_voice_processing: bool,
     /// 80 Hz high-pass (rumble / handling noise).
     pub mic_highpass: bool,
     /// Software AGC: lifts a distant speaker to a steady level.
@@ -175,6 +177,7 @@ impl Default for Settings {
             llm_base_url: String::new(),
             llm_api_key: String::new(),
             llm_model: String::new(),
+            mic_voice_processing: false,
             mic_highpass: true,
             mic_agc: true,
             mic_denoise: true,

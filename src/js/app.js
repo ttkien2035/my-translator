@@ -813,6 +813,7 @@ class App {
         const subMic = document.getElementById('card-mic-sub');
         if (subMic) {
             const on = [];
+            if (s.mic_voice_processing) on.push('Apple VP');
             if (s.mic_denoise !== false) on.push('khử ồn');
             if (s.mic_agc !== false) on.push('AGC');
             if (s.mic_vad) on.push('VAD');
@@ -1024,16 +1025,24 @@ class App {
     _populateMicTab() {
         const s = settingsManager.get();
         const set = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
+        set('check-mic-vpio', !!s.mic_voice_processing);
         set('check-mic-highpass', s.mic_highpass !== false);
         set('check-mic-agc', s.mic_agc !== false);
         set('check-mic-denoise', s.mic_denoise !== false);
         set('check-mic-vad', !!s.mic_vad);
+        // Apple Voice Processing exists only on macOS.
+        const isMac = this._platformOs === 'macos';
+        for (const id of ['mic-vpio-row', 'mic-vpio-hint']) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = isMac ? '' : 'none';
+        }
         this._refreshAudioModelsStatus();
     }
 
     _collectMicTab() {
         const get = (id, dflt) => document.getElementById(id)?.checked ?? dflt;
         return {
+            mic_voice_processing: get('check-mic-vpio', false),
             mic_highpass: get('check-mic-highpass', true),
             mic_agc: get('check-mic-agc', true),
             mic_denoise: get('check-mic-denoise', true),

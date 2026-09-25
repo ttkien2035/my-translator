@@ -36,6 +36,9 @@ const TAIL_SILENCE_WINDOWS: usize = 6;
 /// Per-session microphone options, resolved from settings in `start_capture`.
 #[derive(Clone, Debug, Default)]
 pub struct MicOptions {
+    /// macOS only: capture through Apple's Voice-Processing I/O unit (system
+    /// echo cancellation, noise suppression and AGC). Ignored elsewhere.
+    pub voice_processing: bool,
     /// 1st-order high-pass at 80 Hz: removes rumble/handling noise.
     pub highpass: bool,
     /// Software automatic gain control (lifts a distant lecturer to a steady level).

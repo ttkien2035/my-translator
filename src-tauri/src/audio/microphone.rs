@@ -1,7 +1,9 @@
-//! Microphone capture via cpal. The audio callback only forwards raw frames
-//! to the processing thread (see `mic_pipeline`); all DSP happens off the
-//! real-time thread. Stopping drops the stream, which closes the raw queue,
-//! which ends the processing thread and frees its models.
+//! Microphone capture. Two backends feed the same DSP thread
+//! (`mic_pipeline`): cpal (all platforms) and, on macOS when enabled, Apple's
+//! Voice-Processing I/O unit (`mic_vpio`). Either way the audio callback only
+//! forwards raw frames over a bounded queue; all DSP happens off the
+//! real-time thread. Stopping drops the backend, which closes the raw queue,
+//! which ends the DSP thread and frees its models.
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::mpsc;
@@ -12,27 +14,57 @@ use super::mic_pipeline::{self, MicOptions};
 /// of slack before frames are dropped (the callback never blocks).
 const RAW_QUEUE_DEPTH: usize = 64;
 
+/// What keeps the capture alive; the handles are never read, only dropped.
+enum Backend {
+    Cpal { _stream: cpal::Stream },
+    #[cfg(target_os = "macos")]
+    Vpio { _unit: coreaudio::audio_unit::AudioUnit },
+}
+
 /// Microphone capture: default input device → PCM s16le 16 kHz mono.
 pub struct MicCapture {
-    /// Held to keep the stream alive; dropping it stops capture.
-    stream: Option<cpal::Stream>,
+    backend: Option<Backend>,
 }
 
 // SAFETY: MicCapture is only accessed through the Mutex in AudioState, and
 // the cpal::Stream is created and dropped on the same (main) thread via sync
 // Tauri commands. cpal::Stream is !Send only because some backends require
-// same-thread use; we never move it across threads.
+// same-thread use; we never move it across threads. (AudioUnit is Send.)
 unsafe impl Send for MicCapture {}
 
 impl MicCapture {
     pub fn new() -> Self {
-        Self { stream: None }
+        Self { backend: None }
     }
 
     /// Start capturing. Returns a receiver of processed s16le 16 kHz chunks.
     pub fn start(&mut self, opts: MicOptions) -> Result<mpsc::Receiver<Vec<u8>>, String> {
-        if self.stream.is_some() {
+        if self.backend.is_some() {
             return Err("Already capturing".to_string());
+        }
+
+        #[cfg(target_os = "macos")]
+        if opts.voice_processing {
+            let (raw_tx, raw_rx) = mpsc::sync_channel::<Vec<f32>>(RAW_QUEUE_DEPTH);
+            match super::mic_vpio::start(raw_tx, opts.agc) {
+                Ok(unit) => {
+                    // The unit's own AGC is on when requested; don't gain twice.
+                    let dsp_opts = MicOptions {
+                        agc: false,
+                        ..opts
+                    };
+                    let pcm_rx = spawn_dsp(raw_rx, super::mic_vpio::VPIO_RATE, 1, dsp_opts)?;
+                    self.backend = Some(Backend::Vpio { _unit: unit });
+                    return Ok(pcm_rx);
+                }
+                Err(e) => eprintln!(
+                    "[Mic] Apple voice processing unavailable ({e}); using standard capture"
+                ),
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        if opts.voice_processing {
+            eprintln!("[Mic] Apple voice processing is macOS-only; using standard capture");
         }
 
         let host = cpal::default_host();
@@ -88,13 +120,8 @@ impl MicCapture {
             default_config.sample_format()
         );
 
-        // Raw frames: callback → DSP thread (bounded). Processed PCM: DSP → forwarder.
         let (raw_tx, raw_rx) = mpsc::sync_channel::<Vec<f32>>(RAW_QUEUE_DEPTH);
-        let (pcm_tx, pcm_rx) = mpsc::channel::<Vec<u8>>();
-        std::thread::Builder::new()
-            .name("mic-dsp".into())
-            .spawn(move || mic_pipeline::run(raw_rx, pcm_tx, source_rate, channels, opts))
-            .map_err(|e| format!("Failed to spawn mic DSP thread: {e}"))?;
+        let pcm_rx = spawn_dsp(raw_rx, source_rate, channels, opts)?;
 
         let stream_config = cpal::StreamConfig {
             channels: default_config.channels(),
@@ -125,20 +152,36 @@ impl MicCapture {
         stream
             .play()
             .map_err(|e| format!("Failed to start mic stream: {e}"))?;
-        self.stream = Some(stream);
+        self.backend = Some(Backend::Cpal { _stream: stream });
         Ok(pcm_rx)
     }
 
-    /// Stop capturing: dropping the stream closes the raw queue, which ends
+    /// Stop capturing: dropping the backend closes the raw queue, which ends
     /// the DSP thread and, through its dropped sender, the forwarder.
     pub fn stop(&mut self) {
-        self.stream = None;
+        self.backend = None;
     }
+}
+
+/// Spawn the DSP thread for one capture. Raw frames in (device rate,
+/// `channels` interleaved), processed s16le 16 kHz out.
+fn spawn_dsp(
+    raw_rx: mpsc::Receiver<Vec<f32>>,
+    source_rate: u32,
+    channels: usize,
+    opts: MicOptions,
+) -> Result<mpsc::Receiver<Vec<u8>>, String> {
+    let (pcm_tx, pcm_rx) = mpsc::channel::<Vec<u8>>();
+    std::thread::Builder::new()
+        .name("mic-dsp".into())
+        .spawn(move || mic_pipeline::run(raw_rx, pcm_tx, source_rate, channels, opts))
+        .map_err(|e| format!("Failed to spawn mic DSP thread: {e}"))?;
+    Ok(pcm_rx)
 }
 
 /// Real-time callback side: never block. A full queue means the DSP thread is
 /// behind; dropping this callback's frames is the only safe option.
-fn forward(tx: &mpsc::SyncSender<Vec<f32>>, frames: Vec<f32>) {
+pub(super) fn forward(tx: &mpsc::SyncSender<Vec<f32>>, frames: Vec<f32>) {
     if let Err(mpsc::TrySendError::Full(_)) = tx.try_send(frames) {
         // dropped
     }

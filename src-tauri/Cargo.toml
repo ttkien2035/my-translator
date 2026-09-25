@@ -47,6 +47,9 @@ bzip2 = "0.4"
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
 screencapturekit = "1.5"
+# Apple Voice-Processing I/O unit for the microphone (system AEC/NS/AGC).
+# Same version + features as cpal's own dependency, so no second copy is built.
+coreaudio-rs = { version = "0.11", default-features = false, features = ["audio_unit", "core_audio"] }
 
 # Windows: WASAPI for system audio (legacy loopback only)
 [target.'cfg(target_os = "windows")'.dependencies]

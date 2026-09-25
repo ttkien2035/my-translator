@@ -41,12 +41,6 @@ rubato = "0.16"
 # target only: its prebuilt static libs use the old libstdc++ string ABI and
 # crash inside onnxruntime on Ubuntu 24.04, so link the shared libs there.
 sherpa-onnx = { version = "1.13.3", default-features = false }
-
-[target.'cfg(not(target_os = "linux"))'.dependencies]
-sherpa-onnx = { version = "1.13.3", default-features = false, features = ["static"] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-sherpa-onnx = { version = "1.13.3", default-features = false, features = ["shared"] }
 tauri-plugin-dialog = "2"
 # Model archive extraction (.tar.bz2) for downloaded Piper voices / SenseVoice.
 tar = "0.4"
@@ -54,6 +48,12 @@ bzip2 = "0.4"
 # Local translation LLM (Qwen2.5 GGUF) via llama.cpp, statically linked.
 # No default features: `common` (llama.cpp's common lib) isn't needed.
 llama-cpp-2 = { version = "0.1.157", default-features = false }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+sherpa-onnx = { version = "1.13.3", default-features = false, features = ["static"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+sherpa-onnx = { version = "1.13.3", default-features = false, features = ["shared"] }
 
 [target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
 # Apple Silicon: run the LLM on the GPU through Metal.

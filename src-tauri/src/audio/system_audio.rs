@@ -109,7 +109,7 @@ impl SystemAudioCapture {
             .with_height(2)
             .with_captures_audio(true)
             .with_excludes_current_process_audio(true) // Prevent TTS audio feedback loop
-            .with_sample_rate(SCK_SAMPLE_RATE)
+            .with_sample_rate(SCK_SAMPLE_RATE as i32)
             .with_channel_count(2);
 
         // Create channel for audio data

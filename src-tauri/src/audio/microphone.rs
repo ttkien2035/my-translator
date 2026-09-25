@@ -102,7 +102,8 @@ impl MicCapture {
         let source_channels = default_config.channels() as usize;
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>();
-        self.is_capturing.store(true, Ordering::SeqCst);
+        // Flag is raised only after the stream is built AND playing, so a build
+        // failure below never leaves the capture marked as running.
         let is_capturing = self.is_capturing.clone();
 
         // Build the input config targeting our desired format
@@ -167,6 +168,7 @@ impl MicCapture {
             .play()
             .map_err(|e| format!("Failed to start mic stream: {}", e))?;
 
+        self.is_capturing.store(true, Ordering::SeqCst);
         // Store stream to keep it alive
         self._stream = Some(stream);
 
@@ -177,10 +179,6 @@ impl MicCapture {
         self.is_capturing.store(false, Ordering::SeqCst);
         // Drop the stream to stop capturing
         self._stream = None;
-    }
-
-    pub fn is_capturing(&self) -> bool {
-        self.is_capturing.load(Ordering::SeqCst)
     }
 }
 

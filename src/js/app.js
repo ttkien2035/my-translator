@@ -2594,7 +2594,7 @@ class App {
             channel.onmessage = (pcmData) => {
                 audioBatchCount++;
                 if (audioBatchCount <= 3 || audioBatchCount % 50 === 0) {
-                    console.log(`[OpenAI capture] batch #${audioBatchCount}, size:`, pcmData?.length || 0);
+                    console.log(`[OpenAI capture] batch #${audioBatchCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
                 const bytes = new Uint8Array(pcmData);
                 this.openAiClient.sendAudio(bytes.buffer);
@@ -2676,7 +2676,7 @@ class App {
             channel.onmessage = (pcmData) => {
                 audioBatchCount++;
                 if (audioBatchCount <= 3 || audioBatchCount % 50 === 0) {
-                    console.log(`[Qwen capture] batch #${audioBatchCount}, size:`, pcmData?.length || 0);
+                    console.log(`[Qwen capture] batch #${audioBatchCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
                 const bytes = new Uint8Array(pcmData);
                 this.qwenClient.sendAudio(bytes.buffer);
@@ -2720,7 +2720,7 @@ class App {
             channel.onmessage = (pcmData) => {
                 audioChunkCount++;
                 if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
-                    console.log(`[Audio] Batch #${audioChunkCount}, size:`, pcmData?.length || 0);
+                    console.log(`[Audio] Batch #${audioChunkCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
                 // Forward batched audio to Soniox
                 const bytes = new Uint8Array(pcmData);
@@ -2827,10 +2827,11 @@ class App {
             audioChannel.onmessage = async (pcmData) => {
                 audioChunkCount++;
                 if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
-                    console.log(`[Local] Audio batch #${audioChunkCount}, size:`, pcmData?.length || 0);
+                    console.log(`[Local] Audio batch #${audioChunkCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
                 try {
-                    await invoke('send_audio_to_pipeline', { data: Array.from(new Uint8Array(pcmData)) });
+                    // Raw body — the Rust side reads the invoke body as bytes.
+                    await invoke('send_audio_to_pipeline', new Uint8Array(pcmData));
                 } catch (e) {
                     // Pipeline may not be ready yet
                 }

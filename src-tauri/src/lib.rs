@@ -93,9 +93,7 @@ pub fn run() {
             microphone: Mutex::new(MicCapture::new()),
             active_receiver: Mutex::new(None),
         })
-        .manage(LocalPipelineState {
-            process: Mutex::new(None),
-        })
+        .manage(LocalPipelineState::default())
         .manage(LocalTtsState::default())
         .manage(OpenAiState::default())
         .manage(QwenState::default())

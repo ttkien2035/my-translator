@@ -1,9 +1,12 @@
 use screencapturekit::prelude::*;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
+use std::sync::Mutex;
 
 use super::TARGET_SAMPLE_RATE;
+
+/// ScreenCaptureKit is asked for 48 kHz; we decimate by this factor to 16 kHz.
+const SCK_SAMPLE_RATE: u32 = 48_000;
+const DECIMATION: usize = (SCK_SAMPLE_RATE / TARGET_SAMPLE_RATE) as usize; // 3
 
 /// Audio handler that receives CMSampleBuffer callbacks from ScreenCaptureKit
 /// and sends PCM data through a channel.
@@ -28,33 +31,18 @@ impl SCStreamOutputTrait for AudioHandler {
                             return;
                         }
 
-                        // Interpret raw bytes as f32 samples (mono — first channel only)
-                        let f32_samples: &[f32] = unsafe {
-                            std::slice::from_raw_parts(
-                                raw_data.as_ptr() as *const f32,
-                                raw_data.len() / 4,
-                            )
-                        };
-
-                        // Downsample 48kHz -> 16kHz (factor of 3)
-                        let source_rate = 48000u32;
-                        let ratio = source_rate / TARGET_SAMPLE_RATE; // 3
-
-                        let downsampled: Vec<f32> = f32_samples
-                            .iter()
-                            .step_by(ratio as usize)
-                            .copied()
-                            .collect();
-
-                        // Convert f32 [-1.0, 1.0] to i16 PCM s16le
-                        let pcm_s16: Vec<u8> = downsampled
-                            .iter()
-                            .flat_map(|&sample| {
-                                let clamped = sample.clamp(-1.0, 1.0);
-                                let s16 = (clamped * 32767.0) as i16;
-                                s16.to_le_bytes()
-                            })
-                            .collect();
+                        // Bytes are native-endian f32 (first channel only). Read
+                        // them safely — no alignment assumption — and in one pass
+                        // decimate 48 kHz → 16 kHz and convert to s16le, into a
+                        // single pre-sized buffer (one allocation per callback).
+                        let sample_count = raw_data.len() / 4;
+                        let mut pcm_s16 =
+                            Vec::with_capacity((sample_count / DECIMATION + 1) * 2);
+                        for chunk in raw_data.chunks_exact(4).step_by(DECIMATION) {
+                            let sample = f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                            let s16 = (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
+                            pcm_s16.extend_from_slice(&s16.to_le_bytes());
+                        }
 
                         if !pcm_s16.is_empty() {
                             let _ = self.sender.send(pcm_s16);
@@ -72,20 +60,24 @@ impl SCStreamOutputTrait for AudioHandler {
 /// System audio capture using ScreenCaptureKit
 /// Captures all system audio output and converts to PCM s16le 16kHz mono.
 pub struct SystemAudioCapture {
-    is_capturing: Arc<AtomicBool>,
+    /// Held while a stream runs. Each start gets its own sender; the thread
+    /// that owns the `SCStream` blocks on the matching receiver and stops the
+    /// stream the moment the sender is dropped. No polling, and a thread from
+    /// a previous start can never be confused by the next start's state.
+    stop_handle: Mutex<Option<mpsc::Sender<()>>>,
 }
 
 impl SystemAudioCapture {
     pub fn new() -> Self {
         Self {
-            is_capturing: Arc::new(AtomicBool::new(false)),
+            stop_handle: Mutex::new(None),
         }
     }
 
     /// Start capturing system audio.
     /// Returns a receiver that yields PCM s16le 16kHz mono audio chunks.
     pub fn start(&self) -> Result<mpsc::Receiver<Vec<u8>>, String> {
-        if self.is_capturing.load(Ordering::SeqCst) {
+        if self.is_capturing() {
             return Err("Already capturing".to_string());
         }
 
@@ -116,7 +108,7 @@ impl SystemAudioCapture {
             .with_height(2)
             .with_captures_audio(true)
             .with_excludes_current_process_audio(true) // Prevent TTS audio feedback loop
-            .with_sample_rate(48000)
+            .with_sample_rate(SCK_SAMPLE_RATE)
             .with_channel_count(2);
 
         // Create channel for audio data
@@ -132,27 +124,33 @@ impl SystemAudioCapture {
             .start_capture()
             .map_err(|e| format!("Failed to start system audio capture: {}", e))?;
 
-        self.is_capturing.store(true, Ordering::SeqCst);
-
-        // Keep the stream alive in a background thread
-        let is_capturing = self.is_capturing.clone();
+        // The stream lives on its own thread, which parks on `stop_rx` and
+        // stops the stream as soon as `stop()` drops the sender.
+        let (stop_tx, stop_rx) = mpsc::channel::<()>();
         std::thread::spawn(move || {
-            while is_capturing.load(Ordering::SeqCst) {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
+            let _ = stop_rx.recv(); // Err(Disconnected) once the sender is dropped
             let _ = stream.stop_capture();
         });
+        *self.lock_handle() = Some(stop_tx);
 
         Ok(receiver)
     }
 
-    /// Stop capturing
+    /// Stop capturing. Dropping the sender wakes the stream thread immediately.
     pub fn stop(&self) {
-        self.is_capturing.store(false, Ordering::SeqCst);
+        self.lock_handle().take();
     }
 
     pub fn is_capturing(&self) -> bool {
-        self.is_capturing.load(Ordering::SeqCst)
+        self.lock_handle().is_some()
+    }
+
+    fn lock_handle(&self) -> std::sync::MutexGuard<'_, Option<mpsc::Sender<()>>> {
+        // A poisoned lock only means a thread panicked while holding it; the
+        // Option inside is still valid.
+        self.stop_handle
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
 

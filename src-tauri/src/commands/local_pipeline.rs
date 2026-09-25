@@ -1,111 +1,131 @@
-use std::io::Write;
-use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
-use tauri::ipc::Channel;
+//! Local (offline) translation pipeline: a Python sidecar (Whisper + LLM on
+//! MLX) fed raw 16 kHz s16le audio over stdin, answering JSON lines on stdout.
+//!
+//! Hot path is `send_audio_to_pipeline` (5×/s): it must never block the
+//! caller, so audio goes through a bounded queue to a dedicated stdin writer
+//! thread. Start/stop are async so their waits happen off the main thread.
 
-/// State for the local pipeline sidecar process
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use tauri::ipc::{Channel, InvokeBody, Request};
+
+/// stdin queue depth: 200 ms chunks → ~10 s of backlog before chunks are dropped.
+const STDIN_QUEUE_CHUNKS: usize = 50;
+/// After stdin is closed, how long Python gets to flush and exit before SIGKILL.
+const STOP_GRACE: Duration = Duration::from_millis(500);
+
+#[derive(Default)]
 pub struct LocalPipelineState {
     pub process: Mutex<Option<Child>>,
+    /// Feeds the stdin writer thread; `None` while no pipeline is running.
+    stdin_tx: Mutex<Option<SyncSender<Vec<u8>>>>,
 }
 
+/// `~/Library/Application Support/My Translator` — venv, models and logs.
+fn app_support_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("Library/Application Support/My Translator")
+}
+
+fn venv_python() -> PathBuf {
+    app_support_dir().join("mlx-env/bin/python3")
+}
+
+fn system_python() -> &'static str {
+    if Path::new("/opt/homebrew/bin/python3").exists() {
+        "/opt/homebrew/bin/python3"
+    } else {
+        "python3"
+    }
+}
+
+/// Append one line to the pipeline log in app support (lifecycle + errors only;
+/// transcript content is never written here — see the stdout reader).
 fn log_to_file(msg: &str) {
     use std::fs::OpenOptions;
+    let dir = app_support_dir();
+    let _ = std::fs::create_dir_all(&dir);
     let _ = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("/tmp/personal_translator_pipeline.log")
-        .and_then(|mut f| writeln!(f, "[{}] {}", chrono_now(), msg));
+        .open(dir.join("local_pipeline.log"))
+        .and_then(|mut f| {
+            writeln!(
+                f,
+                "[{}] {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                msg
+            )
+        });
     eprintln!("[local-pipeline] {}", msg);
 }
 
-fn chrono_now() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    format!("{}", now)
+/// Properly escaped `{"type":"status","message":…}` line for the frontend.
+fn status_json(message: &str) -> String {
+    serde_json::json!({ "type": "status", "message": message }).to_string()
 }
 
-/// Start the local translation pipeline (Python sidecar)
+/// Locate a bundled script: dev tree first, then the app bundle's Resources.
+fn find_script(name: &str) -> Result<PathBuf, String> {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let candidates = [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../scripts")
+            .join(name),
+        PathBuf::from("scripts").join(name),
+        exe_dir.join("../Resources/scripts").join(name),
+    ];
+    candidates
+        .into_iter()
+        .find(|p| p.exists())
+        .ok_or_else(|| format!("{} not found. Ensure scripts/{} is bundled.", name, name))
+}
+
+/// Start the local translation pipeline (Python sidecar).
 #[tauri::command]
-pub fn start_local_pipeline(
+pub async fn start_local_pipeline(
     source_lang: String,
     target_lang: String,
     channel: Channel<String>,
     state: tauri::State<'_, LocalPipelineState>,
 ) -> Result<(), String> {
-    log_to_file(&format!(
-        "start_local_pipeline called: src={}, tgt={}",
-        source_lang, target_lang
-    ));
+    log_to_file(&format!("start: src={} tgt={}", source_lang, target_lang));
+    let _ = channel.send(status_json("Stopping old pipeline..."));
+    stop_pipeline(&state).await;
 
-    // Send status to frontend
-    let _ = channel.send(r#"{"type":"status","message":"Stopping old pipeline..."}"#.to_string());
+    let script_path = find_script("local_pipeline.py")?;
 
-    // Stop existing pipeline
-    stop_local_pipeline_inner(&state);
+    // Reap an orphan left by a crashed earlier run of THIS install — match the
+    // exact script path so other installs (dev vs. bundled) are untouched.
+    {
+        let pattern = script_path.to_string_lossy().into_owned();
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            Command::new("pkill").args(["-f", &pattern]).output()
+        })
+        .await;
+    }
 
-    // Also kill any orphaned pipeline processes
-    let _ = Command::new("pkill")
-        .args(["-f", "local_pipeline.py"])
-        .output();
-
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    let _ = channel.send(r#"{"type":"status","message":"Finding pipeline script..."}"#.to_string());
-
-    // Find the Python script — try multiple locations
-    let script_path = {
-        let candidates = vec![
-            // Dev: project root (when running from src-tauri/)
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../scripts/local_pipeline.py"),
-            // Dev: relative to current working directory
-            std::path::PathBuf::from("scripts/local_pipeline.py"),
-            // Production: relative to executable
-            std::env::current_exe()
-                .unwrap_or_default()
-                .parent()
-                .unwrap_or(std::path::Path::new("."))
-                .join("../Resources/scripts/local_pipeline.py"),
-        ];
-
-        log_to_file(&format!(
-            "Checking candidates: {:?}",
-            candidates
-                .iter()
-                .map(|p| format!("{:?} exists={}", p, p.exists()))
-                .collect::<Vec<_>>()
-        ));
-
-        candidates.into_iter().find(|p| p.exists()).ok_or_else(|| {
-            "Pipeline script not found. Ensure scripts/local_pipeline.py exists.".to_string()
-        })?
-    };
-
-    log_to_file(&format!("Using script: {:?}", script_path));
-    let _ = channel.send(format!(
-        r#"{{"type":"status","message":"Starting Python pipeline..."}}"#
-    ));
-
-    // Use venv python if MLX setup is complete, otherwise fall back to system python
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/phucnt".to_string());
-    let venv_python = format!(
-        "{}/Library/Application Support/My Translator/mlx-env/bin/python3",
-        home
-    );
-
-    let python = if std::path::Path::new(&venv_python).exists() {
-        log_to_file(&format!("Using venv python: {}", venv_python));
-        venv_python.as_str().to_string()
-    } else if std::path::Path::new("/opt/homebrew/bin/python3").exists() {
-        log_to_file("Using homebrew python");
-        "/opt/homebrew/bin/python3".to_string()
+    let _ = channel.send(status_json("Starting Python pipeline..."));
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+    let venv = venv_python();
+    let python = if venv.exists() {
+        venv
     } else {
-        "python3".to_string()
+        PathBuf::from(system_python())
     };
-
-    let path_env = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin";
+    log_to_file(&format!(
+        "script={} python={}",
+        script_path.display(),
+        python.display()
+    ));
 
     let mut child = Command::new(&python)
         .arg(&script_path)
@@ -115,7 +135,7 @@ pub fn start_local_pipeline(
         .arg(&source_lang)
         .arg("--target-lang")
         .arg(&target_lang)
-        .env("PATH", path_env)
+        .env("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin")
         .env("HOME", &home)
         .env("TOKENIZERS_PARALLELISM", "false")
         .stdin(Stdio::piped())
@@ -128,51 +148,63 @@ pub fn start_local_pipeline(
             msg
         })?;
 
-    log_to_file(&format!("Python process spawned, PID={}", child.id()));
-    let _ = channel.send(format!(
-        r#"{{"type":"status","message":"Python started (PID={}), loading models..."}}"#,
-        child.id()
-    ));
+    let pid = child.id();
+    log_to_file(&format!("spawned PID={}", pid));
+    let _ = channel.send(status_json(&format!(
+        "Python started (PID={}), loading models...",
+        pid
+    )));
 
-    // Read stdout in a background thread and forward JSON to frontend
+    let stdin = child.stdin.take().ok_or("Failed to get stdin")?;
     let stdout = child.stdout.take().ok_or("Failed to get stdout")?;
-
     let stderr = child.stderr.take().ok_or("Failed to get stderr")?;
 
-    // Forward stdout (JSON results) to frontend
-    let channel_clone = channel.clone();
+    // stdin writer: the only thread that touches the pipe. Dropping the sender
+    // (stop) ends the loop, which closes stdin → Python sees EOF and exits.
+    let (tx, rx) = sync_channel::<Vec<u8>>(STDIN_QUEUE_CHUNKS);
+    std::thread::spawn(move || {
+        let mut stdin = stdin;
+        for chunk in rx {
+            if let Err(e) = stdin.write_all(&chunk) {
+                log_to_file(&format!("stdin write error: {}", e));
+                break;
+            }
+        }
+        log_to_file("stdin writer ended");
+    });
+
+    // stdout → frontend verbatim (JSON lines). Result lines carry transcript
+    // text, so only the other kinds are logged.
+    let ch = channel.clone();
     std::thread::spawn(move || {
         use std::io::BufRead;
-        let reader = std::io::BufReader::new(stdout);
-        for line in reader.lines() {
+        for line in std::io::BufReader::new(stdout).lines() {
             match line {
-                Ok(line) if !line.is_empty() => {
-                    log_to_file(&format!("stdout: {}", &line));
-                    let _ = channel_clone.send(line);
+                Ok(line) if line.is_empty() => {}
+                Ok(line) => {
+                    if !line.contains(r#""type":"result""#) && !line.contains(r#""type": "result""#) {
+                        log_to_file(&format!("stdout: {}", line));
+                    }
+                    let _ = ch.send(line);
                 }
                 Err(e) => {
                     log_to_file(&format!("stdout error: {}", e));
                     break;
                 }
-                _ => {}
             }
         }
         log_to_file("stdout reader ended");
     });
 
-    // Log stderr AND forward to frontend as status
-    let channel_clone2 = channel.clone();
+    // stderr (model loading progress, warnings) → log + status event.
+    let ch = channel.clone();
     std::thread::spawn(move || {
         use std::io::BufRead;
-        let reader = std::io::BufReader::new(stderr);
-        for line in reader.lines() {
+        for line in std::io::BufReader::new(stderr).lines() {
             match line {
                 Ok(line) => {
                     log_to_file(&format!("stderr: {}", line));
-                    // Forward pipeline status to frontend
-                    let escaped = line.replace('"', r#"\""#);
-                    let _ = channel_clone2
-                        .send(format!(r#"{{"type":"status","message":"{}"}}"#, escaped));
+                    let _ = ch.send(status_json(&line));
                 }
                 Err(_) => break,
             }
@@ -180,153 +212,149 @@ pub fn start_local_pipeline(
         log_to_file("stderr reader ended");
     });
 
-    let mut proc = state.process.lock().map_err(|e| e.to_string())?;
-    *proc = Some(child);
-
-    log_to_file("Pipeline state saved, returning OK");
+    *state.stdin_tx.lock().map_err(|e| e.to_string())? = Some(tx);
+    *state.process.lock().map_err(|e| e.to_string())? = Some(child);
     Ok(())
 }
 
-/// Send audio data to the local pipeline stdin
+/// Hot path: raw PCM invoke body → bounded queue. Never blocks; when Python
+/// falls behind, the newest chunk is dropped rather than growing memory.
 #[tauri::command]
 pub fn send_audio_to_pipeline(
-    data: Vec<u8>,
+    request: Request<'_>,
     state: tauri::State<'_, LocalPipelineState>,
 ) -> Result<(), String> {
-    let mut proc = state.process.lock().map_err(|e| e.to_string())?;
-    if let Some(ref mut child) = *proc {
-        if let Some(ref mut stdin) = child.stdin {
-            stdin.write_all(&data).map_err(|e| {
-                log_to_file(&format!("stdin write error: {}", e));
-                e.to_string()
-            })?;
-            stdin.flush().map_err(|e| e.to_string())?;
+    let pcm = match request.body() {
+        InvokeBody::Raw(bytes) => bytes,
+        InvokeBody::Json(_) => return Err("expected raw PCM body".into()),
+    };
+    let guard = state.stdin_tx.lock().map_err(|e| e.to_string())?;
+    let Some(tx) = guard.as_ref() else {
+        return Err("pipeline not running".into());
+    };
+    match tx.try_send(pcm.clone()) {
+        Ok(()) => Ok(()),
+        Err(TrySendError::Full(_)) => {
+            eprintln!("[local-pipeline] stdin queue full — dropping chunk");
+            Ok(())
         }
+        Err(TrySendError::Disconnected(_)) => Err("pipeline stdin closed".into()),
     }
-    Ok(())
 }
 
-/// Stop the local pipeline
+/// Stop the local pipeline.
 #[tauri::command]
-pub fn stop_local_pipeline(state: tauri::State<'_, LocalPipelineState>) -> Result<(), String> {
-    log_to_file("stop_local_pipeline called");
-    stop_local_pipeline_inner(&state);
+pub async fn stop_local_pipeline(
+    state: tauri::State<'_, LocalPipelineState>,
+) -> Result<(), String> {
+    log_to_file("stop called");
+    stop_pipeline(&state).await;
     Ok(())
 }
 
-fn stop_local_pipeline_inner(state: &LocalPipelineState) {
-    if let Ok(mut proc) = state.process.lock() {
-        if let Some(mut child) = proc.take() {
-            log_to_file(&format!("Killing pipeline PID={}", child.id()));
-            // Close stdin to signal the pipeline to stop
-            drop(child.stdin.take());
-            // Give it a moment, then kill if needed
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            let _ = child.kill();
-            let _ = child.wait();
-            log_to_file("Pipeline killed");
-        }
+/// Close stdin (EOF lets Python flush its last window), wait up to STOP_GRACE
+/// off the main thread, then kill whatever is still running.
+async fn stop_pipeline(state: &LocalPipelineState) {
+    if let Ok(mut tx) = state.stdin_tx.lock() {
+        tx.take();
     }
+    let child = match state.process.lock() {
+        Ok(mut p) => p.take(),
+        Err(_) => None,
+    };
+    let Some(mut child) = child else {
+        return;
+    };
+    let pid = child.id();
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        let deadline = Instant::now() + STOP_GRACE;
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    log_to_file(&format!("PID={} exited: {}", pid, status));
+                    break;
+                }
+                Ok(None) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                _ => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    log_to_file(&format!("PID={} killed", pid));
+                    break;
+                }
+            }
+        }
+    })
+    .await;
 }
 
-/// Check if MLX setup is complete
+/// Check if MLX setup is complete.
 #[tauri::command]
 pub fn check_mlx_setup() -> Result<String, String> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/phucnt".to_string());
-    let marker = format!(
-        "{}/Library/Application Support/My Translator/mlx-env/.setup_complete",
-        home
-    );
-    let venv_python = format!(
-        "{}/Library/Application Support/My Translator/mlx-env/bin/python3",
-        home
-    );
-
-    if std::path::Path::new(&marker).exists() && std::path::Path::new(&venv_python).exists() {
-        // Read marker to get details
+    let marker = app_support_dir().join("mlx-env/.setup_complete");
+    let python = venv_python();
+    if marker.exists() && python.exists() {
+        // The marker is JSON written by setup_mlx.py; pass it through as an
+        // object when it parses, otherwise as a string (always valid JSON).
         let content = std::fs::read_to_string(&marker).unwrap_or_default();
-        Ok(format!(
-            r#"{{"ready":true,"python":"{}","details":{}}}"#,
-            venv_python, content
-        ))
+        let details = serde_json::from_str::<serde_json::Value>(&content)
+            .unwrap_or(serde_json::Value::String(content));
+        Ok(serde_json::json!({
+            "ready": true,
+            "python": python.to_string_lossy(),
+            "details": details,
+        })
+        .to_string())
     } else {
         Ok(r#"{"ready":false}"#.to_string())
     }
 }
 
-/// Run MLX setup (install venv + packages + download models)
+/// Run MLX setup (install venv + packages + download models).
 #[tauri::command]
 pub fn run_mlx_setup(channel: Channel<String>) -> Result<(), String> {
     log_to_file("run_mlx_setup called");
+    let script_path = find_script("setup_mlx.py")?;
 
-    // Find setup script
-    let script_path = {
-        let candidates = vec![
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scripts/setup_mlx.py"),
-            std::path::PathBuf::from("scripts/setup_mlx.py"),
-            std::env::current_exe()
-                .unwrap_or_default()
-                .parent()
-                .unwrap_or(std::path::Path::new("."))
-                .join("../Resources/scripts/setup_mlx.py"),
-        ];
-
-        candidates
-            .into_iter()
-            .find(|p| p.exists())
-            .ok_or_else(|| "Setup script not found.".to_string())?
-    };
-
-    // Use system python to run setup (which creates the venv)
-    let python = if std::path::Path::new("/opt/homebrew/bin/python3").exists() {
-        "/opt/homebrew/bin/python3"
-    } else {
-        "python3"
-    };
-
-    let mut child = Command::new(python)
+    // Setup runs with the system python (it creates the venv itself).
+    let mut child = Command::new(system_python())
         .arg(&script_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("Failed to start setup: {}", e))?;
+    log_to_file(&format!("setup spawned PID={}", child.id()));
 
-    log_to_file(&format!("Setup process spawned, PID={}", child.id()));
-
-    // Forward stdout (JSON progress) to frontend
     let stdout = child.stdout.take().ok_or("Failed to get stdout")?;
-    let channel_clone = channel.clone();
+    let ch = channel.clone();
     std::thread::spawn(move || {
         use std::io::BufRead;
-        let reader = std::io::BufReader::new(stdout);
-        for line in reader.lines() {
+        for line in std::io::BufReader::new(stdout).lines() {
             match line {
-                Ok(line) if !line.is_empty() => {
-                    log_to_file(&format!("setup stdout: {}", &line));
-                    let _ = channel_clone.send(line);
+                Ok(line) if line.is_empty() => {}
+                Ok(line) => {
+                    log_to_file(&format!("setup stdout: {}", line));
+                    let _ = ch.send(line);
                 }
                 Err(e) => {
                     log_to_file(&format!("setup stdout error: {}", e));
                     break;
                 }
-                _ => {}
             }
         }
     });
 
-    // Forward stderr to log + frontend
     let stderr = child.stderr.take().ok_or("Failed to get stderr")?;
-    let channel_clone2 = channel.clone();
+    let ch = channel.clone();
     std::thread::spawn(move || {
         use std::io::BufRead;
-        let reader = std::io::BufReader::new(stderr);
-        for line in reader.lines() {
+        for line in std::io::BufReader::new(stderr).lines() {
             match line {
                 Ok(line) => {
                     log_to_file(&format!("setup stderr: {}", line));
-                    let escaped = line.replace('"', r#"\""#);
-                    let _ =
-                        channel_clone2.send(format!(r#"{{"type":"log","message":"{}"}}"#, escaped));
+                    let _ = ch
+                        .send(serde_json::json!({ "type": "log", "message": line }).to_string());
                 }
                 Err(_) => break,
             }

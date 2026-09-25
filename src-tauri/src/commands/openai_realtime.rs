@@ -11,7 +11,8 @@ use http::Request;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::ipc::Channel;
+use std::time::Duration;
+use tauri::ipc::{Channel, InvokeBody, Request as IpcRequest};
 use tauri::State;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -20,6 +21,9 @@ use crate::audio::resampler::UpsamplerTo24k;
 
 const OPENAI_REALTIME_BASE: &str = "wss://api.openai.com/v1/realtime/translations";
 const OPENAI_DEFAULT_MODEL: &str = "gpt-realtime-translate";
+/// Bounded audio queue: 200 ms chunks → ~10 s of backlog before we drop.
+const AUDIO_QUEUE_CHUNKS: usize = 50;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// WS URL for `model`; falls back to the default when empty. Model ids are
 /// restricted to URL-safe chars so a settings value can't inject query params.
@@ -81,7 +85,7 @@ pub enum OpenAiEvent {
 }
 
 struct Session {
-    audio_tx: mpsc::UnboundedSender<Vec<u8>>,
+    audio_tx: mpsc::Sender<Vec<u8>>,
     stop_tx: mpsc::UnboundedSender<()>,
     upsampler: Mutex<UpsamplerTo24k>,
 }
@@ -110,7 +114,7 @@ pub async fn openai_realtime_start(
 
     let upsampler = UpsamplerTo24k::new()?;
 
-    let (audio_tx, audio_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (audio_tx, audio_rx) = mpsc::channel::<Vec<u8>>(AUDIO_QUEUE_CHUNKS);
     let (stop_tx, stop_rx) = mpsc::unbounded_channel::<()>();
 
     let session = Session {
@@ -151,25 +155,38 @@ pub async fn openai_realtime_start(
     Ok(session_id)
 }
 
+/// Hot path (5×/s). PCM arrives as the raw invoke body — no JSON number array
+/// to serialize/parse — with the session id in the `x-session-id` header.
 #[tauri::command]
 pub async fn openai_realtime_send_audio(
-    session_id: u64,
-    pcm: Vec<u8>,
+    request: IpcRequest<'_>,
     state: State<'_, OpenAiState>,
 ) -> Result<(), String> {
+    let session_id = super::session_id_from_headers(request.headers())?;
+    let pcm = match request.body() {
+        InvokeBody::Raw(bytes) => bytes,
+        InvokeBody::Json(_) => return Err("expected raw PCM body".into()),
+    };
+
     let sessions = state.sessions.lock().unwrap();
     let session = sessions
         .get(&session_id)
         .ok_or_else(|| format!("Session {} not found", session_id))?;
 
-    let upsampled = session.upsampler.lock().unwrap().push(&pcm)?;
-    if !upsampled.is_empty() {
-        session
-            .audio_tx
-            .send(upsampled)
-            .map_err(|e| format!("send audio failed: {}", e))?;
+    let upsampled = session.upsampler.lock().unwrap().push(pcm)?;
+    if upsampled.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    match session.audio_tx.try_send(upsampled) {
+        Ok(()) => Ok(()),
+        // Real-time audio: if the socket can't keep up, dropping the newest
+        // chunk beats unbounded memory growth.
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            eprintln!("[openai] audio queue full — dropping chunk");
+            Ok(())
+        }
+        Err(mpsc::error::TrySendError::Closed(_)) => Err("session closed".into()),
+    }
 }
 
 #[tauri::command]
@@ -186,7 +203,7 @@ pub async fn openai_realtime_stop(
 
 async fn run_session(
     cfg: OpenAiRealtimeConfig,
-    mut audio_rx: mpsc::UnboundedReceiver<Vec<u8>>,
+    mut audio_rx: mpsc::Receiver<Vec<u8>>,
     mut stop_rx: mpsc::UnboundedReceiver<()>,
     event_ch: Channel<OpenAiEvent>,
 ) -> Result<(), String> {
@@ -205,9 +222,15 @@ async fn run_session(
         .body(())
         .map_err(|e| format!("build request: {}", e))?;
 
-    let (ws_stream, _) = connect_async(request)
-        .await
-        .map_err(|e| format!("websocket connect: {}", e))?;
+    // Bounded connect; a stop that arrives while connecting is honoured instead
+    // of completing the handshake for a session nobody wants anymore.
+    let (ws_stream, _) = tokio::select! {
+        biased;
+        _ = stop_rx.recv() => return Ok(()),
+        res = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(request)) => res
+            .map_err(|_| format!("websocket connect: timed out after {}s", CONNECT_TIMEOUT.as_secs()))?
+            .map_err(|e| format!("websocket connect: {}", e))?,
+    };
 
     let (mut ws_sink, mut ws_stream) = ws_stream.split();
 

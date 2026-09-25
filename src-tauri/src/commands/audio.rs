@@ -3,7 +3,10 @@ use crate::audio::SystemAudioCapture;
 use serde::Serialize;
 use std::sync::mpsc;
 use std::sync::Mutex;
-use tauri::{ipc::Channel, State};
+use tauri::{
+    ipc::{Channel, InvokeResponseBody},
+    State,
+};
 
 /// State for tracking active audio captures
 pub struct AudioState {
@@ -35,7 +38,7 @@ pub struct PermissionStatus {
 #[tauri::command]
 pub fn start_capture(
     source: String,
-    channel: Channel<Vec<u8>>,
+    channel: Channel<InvokeResponseBody>,
     state: State<'_, AudioState>,
 ) -> Result<(), String> {
     // Stop any existing capture first
@@ -88,38 +91,42 @@ pub fn start_capture(
     let stop_flag_clone = stop_flag.clone();
 
     std::thread::spawn(move || {
-        let mut buffer: Vec<u8> = Vec::with_capacity(32000); // ~1 sec at 16kHz s16le
+        // 200 ms of 16 kHz s16le mono is 6400 B; headroom so a batch never grows.
+        const BATCH_CAP: usize = 8192;
         let batch_interval = std::time::Duration::from_millis(200);
+        let mut buffer: Vec<u8> = Vec::with_capacity(BATCH_CAP);
         let mut last_flush = std::time::Instant::now();
+
+        // Hand the batch to the webview as raw bytes (not a JSON number array),
+        // swapping in a fresh buffer instead of cloning. False once the channel
+        // is closed.
+        let flush = |buffer: &mut Vec<u8>| -> bool {
+            if buffer.is_empty() {
+                return true;
+            }
+            let batch = std::mem::replace(buffer, Vec::with_capacity(BATCH_CAP));
+            channel.send(InvokeResponseBody::Raw(batch)).is_ok()
+        };
 
         loop {
             if stop_flag_clone.load(std::sync::atomic::Ordering::SeqCst) {
-                // Flush remaining buffer before exit
-                if !buffer.is_empty() {
-                    let _ = channel.send(buffer.clone());
-                }
+                flush(&mut buffer);
                 break;
             }
 
             match receiver.recv_timeout(std::time::Duration::from_millis(10)) {
-                Ok(data) => {
-                    buffer.extend_from_slice(&data);
-                }
+                Ok(data) => buffer.extend_from_slice(&data),
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    if !buffer.is_empty() {
-                        let _ = channel.send(buffer.clone());
-                    }
+                    flush(&mut buffer);
                     break;
                 }
             }
 
-            // Flush buffer every 200ms
             if last_flush.elapsed() >= batch_interval && !buffer.is_empty() {
-                if let Err(_e) = channel.send(buffer.clone()) {
-                    break; // Channel closed
+                if !flush(&mut buffer) {
+                    break; // webview channel closed
                 }
-                buffer.clear();
                 last_flush = std::time::Instant::now();
             }
         }

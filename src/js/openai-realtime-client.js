@@ -60,11 +60,10 @@ export class OpenAiRealtimeClient {
 
     async sendAudio(arrayBuffer) {
         if (!this.isConnected || this.sessionId == null) return;
-        const bytes = Array.from(new Uint8Array(arrayBuffer));
         try {
-            await invoke('openai_realtime_send_audio', {
-                sessionId: this.sessionId,
-                pcm: bytes,
+            // Raw body (no JSON number array); the session id rides in a header.
+            await invoke('openai_realtime_send_audio', new Uint8Array(arrayBuffer), {
+                headers: { 'x-session-id': String(this.sessionId) },
             });
         } catch (err) {
             console.warn('[OpenAI Realtime] send audio failed:', err);

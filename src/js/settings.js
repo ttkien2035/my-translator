@@ -18,6 +18,9 @@ const DEFAULT_SETTINGS = {
   show_original: true,
   translation_mode: 'soniox',
   custom_context: null,
+  // Course profiles: [{ id, name, context: { general, terms, text, translation_terms } }]
+  profiles: [],
+  active_profile: '',
   elevenlabs_api_key: '',
   tts_enabled: false,
   tts_provider: 'edge',

@@ -95,6 +95,7 @@
           <span id="status-text" class="status-text">Ready</span>
         </div>
         <span id="live-lang" class="live-lang" title="Cặp ngôn ngữ (đổi trong Cài đặt)"></span>
+        <select id="select-live-profile" class="source-select" title="Hồ sơ môn học (từ điển + ngữ cảnh)" style="display:none"></select>
         <select id="select-audio-source" class="source-select" title="Nguồn âm thanh (⌘1/2/3)">
           <option value="system">🔊 System</option>
           <option value="microphone">🎤 Mic</option>
@@ -651,8 +652,25 @@
         </div>
 
         <div class="settings-section" id="section-soniox-context">
-          <span class="field-label">Context <span class="optional-badge">Optional</span></span>
-          <p class="hint" style="margin-bottom: 8px;">Provide context to improve transcription and translation accuracy.</p>
+          <!-- Course profiles: one context per subject. The editor below edits
+               the selected (= active) profile. -->
+          <span class="field-label">Hồ sơ môn học</span>
+          <div class="input-group" style="margin-top:4px">
+            <select id="select-profile" title="Hồ sơ đang dùng"></select>
+            <button type="button" id="btn-profile-add" class="btn-secondary small" title="Thêm hồ sơ">+</button>
+            <button type="button" id="btn-profile-rename" class="btn-secondary small" title="Đổi tên">✎</button>
+            <button type="button" id="btn-profile-delete" class="btn-secondary small" title="Xoá hồ sơ">🗑</button>
+          </div>
+          <div id="profile-name-editor" class="input-group" style="margin-top:6px;display:none">
+            <input type="text" id="input-profile-name" placeholder="Tên môn, ví dụ: Tài chính doanh nghiệp" maxlength="60" autocomplete="off" />
+            <button type="button" id="btn-profile-name-ok" class="btn-secondary small">OK</button>
+            <button type="button" id="btn-profile-name-cancel" class="btn-secondary small">Huỷ</button>
+          </div>
+          <div class="input-group" style="margin-top:6px">
+            <button type="button" id="btn-profile-import-finance" class="btn-secondary small">📚 Nạp từ điển tài chính Trung–Việt</button>
+            <span id="profile-stats" class="hint" style="margin:0 0 0 8px"></span>
+          </div>
+          <p class="hint" style="margin-bottom: 8px;">Thuật ngữ và ngữ cảnh bên dưới thuộc hồ sơ đang chọn, được nạp vào Soniox khi bắt đầu (đổi hồ sơ giữa giờ cũng áp dụng ngay).</p>
 
           <!-- General context (key-value pairs) -->
           <div class="context-subsection">

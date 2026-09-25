@@ -95,6 +95,8 @@ class App {
     async init() {
         // Load settings
         await settingsManager.load();
+        // First run after the profiles feature: wrap the legacy context in a profile.
+        await this._ensureProfiles();
 
         // Init transcript UI
         const transcriptContainer = document.getElementById('transcript-content');
@@ -428,6 +430,7 @@ class App {
         });
         this._bindModelTab();
         this._bindMicTab();
+        this._bindProfileUi();
 
         // Welcome-screen engine cards: pick a class (standard / openai),
         // remember it, hide the picker, sync the rest of the UI.
@@ -1150,32 +1153,9 @@ class App {
 
         document.getElementById('check-show-original').checked = s.show_original !== false;
 
-        // Custom context (rich format)
-        const ctx = s.custom_context;
-        // General context rows
-        const generalList = document.getElementById('context-general-list');
-        if (generalList) {
-            generalList.innerHTML = '';
-            const generalPairs = ctx?.general || [];
-            generalPairs.forEach(g => this._addGeneralRow(g.key, g.value));
-        }
-        // Transcription terms
-        const termsInput = document.getElementById('input-context-terms');
-        if (termsInput) {
-            termsInput.value = (ctx?.terms || []).join('\n');
-        }
-        // Background text
-        const textInput = document.getElementById('input-context-text');
-        if (textInput) {
-            textInput.value = ctx?.text || '';
-        }
-        // Load translation terms as rows
-        const termsList = document.getElementById('translation-terms-list');
-        if (termsList) {
-            termsList.innerHTML = '';
-            const terms = ctx?.translation_terms || [];
-            terms.forEach(t => this._addTermRow(t.source, t.target));
-        }
+        // Course profiles: the context editor edits the active profile.
+        this._renderProfileSelects();
+        this._populateContextEditor(this._activeProfileContext());
 
         // TTS settings
         document.getElementById('input-elevenlabs-key').value = s.elevenlabs_api_key || '';
@@ -1262,38 +1242,12 @@ class App {
             ...this._collectMicTab(),
         };
 
-        // Parse custom context (rich format)
-        // General key-value pairs
-        const generalPairs = [];
-        document.querySelectorAll('#context-general-list .general-row').forEach(row => {
-            const key = row.querySelector('.general-key')?.value.trim();
-            const value = row.querySelector('.general-value')?.value.trim();
-            if (key && value) generalPairs.push({ key, value });
-        });
-
-        // Transcription terms
-        const termsRaw = document.getElementById('input-context-terms')?.value.trim() || '';
-        const terms = termsRaw ? termsRaw.split('\n').map(t => t.trim()).filter(t => t) : [];
-
-        // Background text
-        const contextText = document.getElementById('input-context-text')?.value.trim() || '';
-
-        // Translation terms
-        const translationTerms = [];
-        document.querySelectorAll('#translation-terms-list .term-row').forEach(row => {
-            const source = row.querySelector('.term-source')?.value.trim();
-            const target = row.querySelector('.term-target')?.value.trim();
-            if (source && target) translationTerms.push({ source, target });
-        });
-
-        if (generalPairs.length > 0 || terms.length > 0 || contextText || translationTerms.length > 0) {
-            settings.custom_context = {
-                general: generalPairs,
-                terms: terms,
-                text: contextText || null,
-                translation_terms: translationTerms,
-            };
-        }
+        // Course profile context: the editor's content belongs to the active profile.
+        const editedContext = this._readContextEditor();
+        settings.profiles = this._getProfiles().map(p =>
+            p.id === this._activeProfileId() ? { ...p, context: editedContext } : p
+        );
+        settings.active_profile = this._activeProfileId();
 
         // TTS settings
         settings.tts_provider = document.getElementById('select-tts-provider')?.value || 'edge';
@@ -1337,6 +1291,7 @@ class App {
         if (langEl) {
             langEl.textContent = `${settings.source_language || 'auto'} → ${settings.target_language || 'vi'}`;
         }
+        this._renderProfileSelects();
 
         // Saving settings must not silently turn narration off (it used to — every
         // ⌘1/2/3 source switch killed TTS). Keep the toggle, re-apply the active
@@ -1503,13 +1458,263 @@ class App {
         }
     }
 
+    // ─── Course profiles ───────────────────────────────────
+    // One context (glossary, domain, background) per subject. The Settings
+    // context editor edits the active profile; the Live bar switches it.
+
+    _getProfiles() {
+        const s = settingsManager.get();
+        return Array.isArray(s.profiles) ? s.profiles : [];
+    }
+
+    _activeProfileId() {
+        const s = settingsManager.get();
+        const ps = this._getProfiles();
+        return ps.some(p => p.id === s.active_profile) ? s.active_profile : (ps[0]?.id || '');
+    }
+
+    _activeProfile() {
+        const id = this._activeProfileId();
+        return this._getProfiles().find(p => p.id === id) || null;
+    }
+
+    _activeProfileContext() {
+        return this._activeProfile()?.context || settingsManager.get().custom_context || null;
+    }
+
+    static _emptyContext() {
+        return { general: [], terms: [], text: null, translation_terms: [] };
+    }
+
+    /** First run: wrap the legacy session-wide context into a "Chung" profile. */
+    async _ensureProfiles() {
+        const s = settingsManager.get();
+        if (Array.isArray(s.profiles) && s.profiles.length > 0) return;
+        const ctx = s.custom_context || App._emptyContext();
+        try {
+            await settingsManager.save({ profiles: [{ id: 'default', name: 'Chung', context: ctx }], active_profile: 'default' });
+        } catch (err) {
+            console.error('[Profiles] migration failed:', err);
+        }
+    }
+
+    _renderProfileSelects() {
+        const ps = this._getProfiles();
+        const active = this._activeProfileId();
+        for (const id of ['select-profile', 'select-live-profile']) {
+            const sel = document.getElementById(id);
+            if (!sel) continue;
+            sel.innerHTML = '';
+            for (const p of ps) {
+                const o = document.createElement('option');
+                o.value = p.id;
+                o.textContent = p.name;
+                sel.appendChild(o);
+            }
+            sel.value = active;
+        }
+        const live = document.getElementById('select-live-profile');
+        if (live) live.style.display = ps.length > 1 ? '' : 'none';
+        const stats = document.getElementById('profile-stats');
+        const ctx = this._activeProfile()?.context;
+        if (stats) {
+            stats.textContent = ctx
+                ? `${(ctx.translation_terms || []).length} cặp thuật ngữ · ${(ctx.terms || []).length} từ nhận dạng`
+                : '';
+        }
+        const del = document.getElementById('btn-profile-delete');
+        if (del) del.disabled = ps.length <= 1;
+    }
+
+    /** Fill the context editor from a profile context. */
+    _populateContextEditor(ctx) {
+        const generalList = document.getElementById('context-general-list');
+        if (generalList) {
+            generalList.innerHTML = '';
+            (ctx?.general || []).forEach(g => this._addGeneralRow(g.key, g.value));
+        }
+        const termsInput = document.getElementById('input-context-terms');
+        if (termsInput) termsInput.value = (ctx?.terms || []).join('\n');
+        const textInput = document.getElementById('input-context-text');
+        if (textInput) textInput.value = ctx?.text || '';
+        const termsList = document.getElementById('translation-terms-list');
+        if (termsList) {
+            termsList.innerHTML = '';
+            (ctx?.translation_terms || []).forEach(t => this._addTermRow(t.source, t.target));
+        }
+    }
+
+    /** Read the context editor back into a profile context object. */
+    _readContextEditor() {
+        const ctx = App._emptyContext();
+        document.querySelectorAll('#context-general-list .general-row').forEach(row => {
+            const key = row.querySelector('.general-key')?.value.trim();
+            const value = row.querySelector('.general-value')?.value.trim();
+            if (key && value) ctx.general.push({ key, value });
+        });
+        const termsRaw = document.getElementById('input-context-terms')?.value.trim() || '';
+        ctx.terms = termsRaw ? termsRaw.split('\n').map(t => t.trim()).filter(Boolean) : [];
+        ctx.text = document.getElementById('input-context-text')?.value.trim() || null;
+        document.querySelectorAll('#translation-terms-list .term-row').forEach(row => {
+            const source = row.querySelector('.term-source')?.value.trim();
+            const target = row.querySelector('.term-target')?.value.trim();
+            if (source && target) ctx.translation_terms.push({ source, target });
+        });
+        return ctx;
+    }
+
+    /** Profiles with the editor's current content written into the active one. */
+    _profilesWithEditedActive() {
+        const edited = this._readContextEditor();
+        return this._getProfiles().map(p => (p.id === this._activeProfileId() ? { ...p, context: edited } : p));
+    }
+
+    _bindProfileUi() {
+        document.getElementById('select-profile')
+            ?.addEventListener('change', (e) => this._setActiveProfile(e.target.value, { fromSettings: true }));
+        document.getElementById('select-live-profile')
+            ?.addEventListener('change', (e) => this._setActiveProfile(e.target.value));
+        document.getElementById('btn-profile-add')?.addEventListener('click', () => this._openProfileNameEditor('add'));
+        document.getElementById('btn-profile-rename')?.addEventListener('click', () => this._openProfileNameEditor('rename'));
+        document.getElementById('btn-profile-name-ok')?.addEventListener('click', () => this._confirmProfileName());
+        document.getElementById('btn-profile-name-cancel')?.addEventListener('click', () => this._closeProfileNameEditor());
+        document.getElementById('input-profile-name')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); this._confirmProfileName(); }
+            if (e.key === 'Escape') { e.preventDefault(); this._closeProfileNameEditor(); }
+        });
+        document.getElementById('btn-profile-delete')?.addEventListener('click', () => this._deleteActiveProfile());
+        document.getElementById('btn-profile-import-finance')?.addEventListener('click', () => this._importFinanceGlossary());
+    }
+
+    /**
+     * Switch the active profile. From Settings, unsaved edits of the previous
+     * profile are kept. While a Soniox session runs, the new context is
+     * applied immediately via a seamless reset.
+     */
+    async _setActiveProfile(id, { fromSettings = false } = {}) {
+        if (!this._getProfiles().some(p => p.id === id)) return;
+        const patch = { active_profile: id };
+        if (fromSettings) patch.profiles = this._profilesWithEditedActive();
+        try {
+            await settingsManager.save(patch);
+        } catch (err) {
+            this._showToast(`Không lưu được hồ sơ: ${err}`, 'error');
+            return;
+        }
+        this._renderProfileSelects();
+        if (fromSettings) this._populateContextEditor(this._activeProfileContext());
+        if (this.isRunning && this.translationMode === 'soniox') {
+            sonioxClient.updateContext(this._activeProfileContext());
+            this._showToast(`Hồ sơ "${this._activeProfile()?.name}" — đã áp dụng`, 'success');
+        }
+    }
+
+    _openProfileNameEditor(mode) {
+        this._profileNameMode = mode;
+        const editor = document.getElementById('profile-name-editor');
+        const input = document.getElementById('input-profile-name');
+        if (!editor || !input) return;
+        input.value = mode === 'rename' ? (this._activeProfile()?.name || '') : '';
+        input.placeholder = mode === 'rename' ? 'Tên mới' : 'Tên môn, ví dụ: Tài chính doanh nghiệp';
+        editor.style.display = '';
+        input.focus();
+    }
+
+    _closeProfileNameEditor() {
+        const editor = document.getElementById('profile-name-editor');
+        if (editor) editor.style.display = 'none';
+    }
+
+    async _confirmProfileName() {
+        const name = document.getElementById('input-profile-name')?.value.trim();
+        if (!name) return;
+        let patch;
+        if (this._profileNameMode === 'add') {
+            const id = 'p-' + Date.now().toString(36);
+            const profiles = this._profilesWithEditedActive();
+            profiles.push({
+                id,
+                name,
+                context: { ...App._emptyContext(), general: [{ key: 'domain', value: 'university lecture' }] },
+            });
+            patch = { profiles, active_profile: id };
+        } else {
+            const profiles = this._getProfiles().map(p => (p.id === this._activeProfileId() ? { ...p, name } : p));
+            patch = { profiles };
+        }
+        try {
+            await settingsManager.save(patch);
+        } catch (err) {
+            this._showToast(`Không lưu được hồ sơ: ${err}`, 'error');
+            return;
+        }
+        this._closeProfileNameEditor();
+        this._renderProfileSelects();
+        this._populateContextEditor(this._activeProfileContext());
+    }
+
+    async _deleteActiveProfile() {
+        const ps = this._getProfiles();
+        const victim = this._activeProfile();
+        if (!victim || ps.length <= 1) return;
+        const msg = `Xoá hồ sơ "${victim.name}" cùng toàn bộ thuật ngữ của nó?`;
+        const dlg = window.__TAURI__?.dialog;
+        const ok = dlg?.confirm ? await dlg.confirm(msg, { title: 'My Translator', kind: 'warning' }) : window.confirm(msg);
+        if (!ok) return;
+        const remaining = ps.filter(p => p.id !== victim.id);
+        try {
+            await settingsManager.save({ profiles: remaining, active_profile: remaining[0].id });
+        } catch (err) {
+            this._showToast(`Không xoá được: ${err}`, 'error');
+            return;
+        }
+        this._renderProfileSelects();
+        this._populateContextEditor(this._activeProfileContext());
+    }
+
+    /** Merge the built-in finance glossary into the active profile (dedup by source term). */
+    async _importFinanceGlossary() {
+        const btn = document.getElementById('btn-profile-import-finance');
+        if (btn) btn.disabled = true;
+        try {
+            const { FINANCE_GLOSSARY } = await import('./glossary/finance-zh-vi.js');
+            const ctx = this._readContextEditor();
+            const havePair = new Set(ctx.translation_terms.map(t => t.source));
+            const haveTerm = new Set(ctx.terms);
+            let added = 0;
+            for (const g of FINANCE_GLOSSARY) {
+                if (!havePair.has(g.zh)) {
+                    ctx.translation_terms.push({ source: g.zh, target: g.vi });
+                    havePair.add(g.zh);
+                    added++;
+                }
+                if (!haveTerm.has(g.zh)) {
+                    ctx.terms.push(g.zh);
+                    haveTerm.add(g.zh);
+                }
+            }
+            if (!ctx.general.some(kv => kv.key === 'domain')) {
+                ctx.general.push({ key: 'domain', value: 'finance, economics, accounting — university lecture' });
+            }
+            const profiles = this._getProfiles().map(p => (p.id === this._activeProfileId() ? { ...p, context: ctx } : p));
+            await settingsManager.save({ profiles });
+            this._populateContextEditor(ctx);
+            this._renderProfileSelects();
+            this._showToast(added ? `Đã nạp ${added} thuật ngữ mới` : 'Từ điển đã có đủ trong hồ sơ', 'success');
+        } catch (err) {
+            this._showToast(`Nạp từ điển thất bại: ${err}`, 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     _addTermRow(source = '', target = '') {
         const list = document.getElementById('translation-terms-list');
         if (!list) return;
         const row = document.createElement('div');
         row.className = 'term-row';
-        row.innerHTML = `<input type="text" class="term-source" value="${source}" placeholder="Source" />` +
-            `<input type="text" class="term-target" value="${target}" placeholder="Target" />` +
+        row.innerHTML = `<input type="text" class="term-source" value="${this._escAttr(source)}" placeholder="Source" />` +
+            `<input type="text" class="term-target" value="${this._escAttr(target)}" placeholder="Target" />` +
             `<button type="button" class="btn-remove-term" title="Remove">×</button>`;
         row.querySelector('.btn-remove-term').addEventListener('click', () => row.remove());
         list.appendChild(row);
@@ -1528,7 +1733,11 @@ class App {
     }
 
     _escAttr(str) {
-        return String(str ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     }
 
     _esc(str) {
@@ -2804,7 +3013,7 @@ class App {
             sourceLanguage: settings.source_language,
             targetLanguage: settings.target_language,
             model: settings.soniox_model || MODEL_DEFAULTS.soniox,
-            customContext: settings.custom_context,
+            customContext: this._activeProfileContext(),
             translationType: settings.translation_type || 'one_way',
             languageA: settings.language_a,
             languageB: settings.language_b,

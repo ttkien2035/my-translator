@@ -30,6 +30,9 @@ const OLD_WS_DRAIN_TIMEOUT_MS = 5000;
 // 16 kHz s16le mono; skip audio once the socket holds more than 5 s unsent.
 const BYTES_PER_SECOND = 32000;
 const MAX_BUFFERED_BYTES = 5 * BYTES_PER_SECOND;
+// Context size caps (a course glossary can be large; keep the config message sane).
+const MAX_CONTEXT_TERMS = 300;
+const MAX_TRANSLATION_TERMS = 500;
 
 // Keepalive: send every 15s to prevent timeout when no audio
 const KEEPALIVE_INTERVAL_MS = 15000;
@@ -307,6 +310,17 @@ export class SonioxClient {
         this._setStatus('disconnected');
     }
 
+    /**
+     * Swap the context (e.g. the user picked another course profile) and, if
+     * connected, apply it immediately through a seamless reset — Soniox only
+     * reads `context` at connect time.
+     */
+    updateContext(customContext) {
+        if (!this._config) return;
+        this._config = { ...this._config, customContext };
+        if (this.isConnected) this._seamlessReset();
+    }
+
     /** Close a socket left draining after a seamless reset (idempotent). */
     _closeOldWs(ws) {
         if (!ws) return;
@@ -482,15 +496,22 @@ export class SonioxClient {
             hasContent = true;
         }
 
-        // Transcription terms (domain-specific words for accuracy)
+        // Transcription terms (domain-specific words for accuracy). Capped so a
+        // large course glossary can't blow past the request size Soniox accepts.
         if (customContext?.terms && customContext.terms.length > 0) {
-            context.terms = customContext.terms;
+            context.terms = customContext.terms.slice(0, MAX_CONTEXT_TERMS);
+            if (customContext.terms.length > MAX_CONTEXT_TERMS) {
+                console.warn(`[Soniox] terms truncated to ${MAX_CONTEXT_TERMS}`);
+            }
             hasContent = true;
         }
 
-        // Translation terms
+        // Translation terms (glossary)
         if (customContext?.translation_terms && customContext.translation_terms.length > 0) {
-            context.translation_terms = customContext.translation_terms;
+            context.translation_terms = customContext.translation_terms.slice(0, MAX_TRANSLATION_TERMS);
+            if (customContext.translation_terms.length > MAX_TRANSLATION_TERMS) {
+                console.warn(`[Soniox] translation_terms truncated to ${MAX_TRANSLATION_TERMS}`);
+            }
             hasContent = true;
         }
 

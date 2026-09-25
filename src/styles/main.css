@@ -2637,3 +2637,7 @@ body.expanded #library-panel { padding: 8px 6%; }
   cursor: pointer;
 }
 .checkbox-field input[type="checkbox"] { margin: 0; }
+
+/* Course profile bar (Settings › Engine dịch › Hồ sơ môn học) */
+.input-group select { flex: 1; min-width: 0; }
+#select-live-profile { max-width: 140px; }

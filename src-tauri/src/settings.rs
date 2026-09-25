@@ -10,12 +10,39 @@ pub struct TranslationTerm {
     pub target: String,
 }
 
-/// Custom context for Soniox — provides domain-specific hints
+/// General context pair for Soniox (`{key: "domain", value: "finance"}`).
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
+pub struct KeyValue {
+    pub key: String,
+    pub value: String,
+}
+
+/// Context for Soniox — domain hints, transcription terms and a glossary.
+/// Mirrors the Soniox `context` object so nothing the UI edits is dropped
+/// on save (the old struct kept only `domain` + `translation_terms`).
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(default)]
 pub struct CustomContext {
+    /// Legacy single domain string from older settings files; superseded by `general`.
     pub domain: Option<String>,
+    pub general: Vec<KeyValue>,
+    /// Domain words that help transcription (source language).
+    pub terms: Vec<String>,
+    /// Free-form background text.
+    pub text: Option<String>,
+    /// Glossary: source → target pairs the translation must respect.
     pub translation_terms: Vec<TranslationTerm>,
+}
+
+/// A course profile: one context (glossary, domain, background) per subject,
+/// switchable between lectures.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
+pub struct CourseProfile {
+    pub id: String,
+    pub name: String,
+    pub context: CustomContext,
 }
 
 /// App settings — persisted to JSON
@@ -45,8 +72,13 @@ pub struct Settings {
     pub show_original: bool,
     /// Translation mode: "soniox" | "local" | "openai"
     pub translation_mode: String,
-    /// Optional custom context for better transcription
+    /// Legacy session-wide context; migrated into the "default" course
+    /// profile by the frontend on first run.
     pub custom_context: Option<CustomContext>,
+    /// Course profiles (Settings › Engine dịch › Hồ sơ môn học).
+    pub profiles: Vec<CourseProfile>,
+    /// Id of the profile whose context is sent to Soniox; empty = first.
+    pub active_profile: String,
     /// ElevenLabs API key for TTS narration
     pub elevenlabs_api_key: String,
     /// Whether TTS narration is enabled
@@ -147,6 +179,8 @@ impl Default for Settings {
             show_original: true,
             translation_mode: "soniox".to_string(),
             custom_context: None,
+            profiles: Vec::new(),
+            active_profile: String::new(),
             elevenlabs_api_key: String::new(),
             tts_enabled: false,
             tts_provider: "edge".to_string(),

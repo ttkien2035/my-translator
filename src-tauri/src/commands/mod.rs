@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod audio_models;
 pub mod edge_tts;
 pub mod google_free_tts;
 pub mod http_client;
@@ -21,4 +22,13 @@ pub(crate) fn session_id_from_headers(headers: &http::HeaderMap) -> Result<u64, 
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok())
         .ok_or_else(|| "missing or invalid x-session-id header".to_string())
+}
+
+/// Per-user app data dir: `~/Library/Application Support/My Translator` on
+/// macOS, `%APPDATA%\My Translator` on Windows, `~/.local/share/My Translator`
+/// on Linux. Holds the MLX venv, downloaded models and logs.
+pub(crate) fn app_support_dir() -> std::path::PathBuf {
+    dirs::data_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("My Translator")
 }

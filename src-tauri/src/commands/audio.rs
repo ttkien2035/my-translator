@@ -1,5 +1,8 @@
+use super::audio_models;
+use crate::audio::mic_pipeline::MicOptions;
 use crate::audio::microphone::MicCapture;
 use crate::audio::SystemAudioCapture;
+use crate::settings::SettingsState;
 use serde::Serialize;
 use std::sync::mpsc;
 use std::sync::Mutex;
@@ -40,6 +43,7 @@ pub fn start_capture(
     source: String,
     channel: Channel<InvokeResponseBody>,
     state: State<'_, AudioState>,
+    settings: State<'_, SettingsState>,
 ) -> Result<(), String> {
     // Stop any existing capture first
     stop_capture_inner(&state);
@@ -51,14 +55,14 @@ pub fn start_capture(
         }
         "microphone" => {
             let mut mic = state.microphone.lock().map_err(|e| e.to_string())?;
-            mic.start()?
+            mic.start(mic_options(&settings))?
         }
         "both" => {
             // Start both sources and merge into a single receiver
             let sys = state.system_audio.lock().map_err(|e| e.to_string())?;
             let sys_rx = sys.start()?;
             let mut mic = state.microphone.lock().map_err(|e| e.to_string())?;
-            let mic_rx = mic.start()?;
+            let mic_rx = mic.start(mic_options(&settings))?;
 
             let (merged_tx, merged_rx) = mpsc::channel::<Vec<u8>>();
             let tx1 = merged_tx.clone();
@@ -138,6 +142,28 @@ pub fn start_capture(
     *active = Some(forwarder);
 
     Ok(())
+}
+
+/// Resolve the microphone chain from settings. Model stages are only enabled
+/// when their file is actually installed, so a missing download degrades to
+/// plain capture instead of failing to start.
+fn mic_options(settings: &SettingsState) -> MicOptions {
+    let s = settings
+        .0
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    MicOptions {
+        highpass: s.mic_highpass,
+        agc: s.mic_agc,
+        denoise_model: s
+            .mic_denoise
+            .then(|| audio_models::installed_path(audio_models::GTCRN_ID))
+            .flatten(),
+        vad_model: s
+            .mic_vad
+            .then(|| audio_models::installed_path(audio_models::SILERO_VAD_ID))
+            .flatten(),
+    }
 }
 
 /// Stop audio capture

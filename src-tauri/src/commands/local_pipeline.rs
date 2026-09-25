@@ -13,6 +13,8 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::ipc::{Channel, InvokeBody, Request};
 
+use super::app_support_dir;
+
 /// stdin queue depth: 200 ms chunks → ~10 s of backlog before chunks are dropped.
 const STDIN_QUEUE_CHUNKS: usize = 50;
 /// After stdin is closed, how long Python gets to flush and exit before SIGKILL.
@@ -23,13 +25,6 @@ pub struct LocalPipelineState {
     pub process: Mutex<Option<Child>>,
     /// Feeds the stdin writer thread; `None` while no pipeline is running.
     stdin_tx: Mutex<Option<SyncSender<Vec<u8>>>>,
-}
-
-/// `~/Library/Application Support/My Translator` — venv, models and logs.
-fn app_support_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("Library/Application Support/My Translator")
 }
 
 fn venv_python() -> PathBuf {

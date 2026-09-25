@@ -1,3 +1,4 @@
+pub mod mic_pipeline;
 pub mod microphone;
 pub mod resampler;
 
@@ -20,6 +21,5 @@ pub use wasapi::SystemAudioCapture;
 #[cfg(target_os = "linux")]
 pub use system_audio_linux::SystemAudioCapture;
 
-/// Target audio format for Soniox: PCM s16le, 16kHz, mono
+/// Target audio format for every engine: PCM s16le, 16 kHz, mono.
 pub const TARGET_SAMPLE_RATE: u32 = 16000;
-pub const TARGET_CHANNELS: u16 = 1;

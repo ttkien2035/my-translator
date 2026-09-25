@@ -331,6 +331,14 @@
           </span>
           <span class="settings-card-chevron">›</span>
         </button>
+        <button class="settings-card" data-screen="tab-mic" id="card-mic">
+          <span class="settings-card-icon">🎤</span>
+          <span class="settings-card-text">
+            <span class="settings-card-title">Micro</span>
+            <span class="settings-card-sub" id="card-mic-sub">—</span>
+          </span>
+          <span class="settings-card-chevron">›</span>
+        </button>
         <button class="settings-card" data-screen="tab-tts" id="card-tts">
           <span class="settings-card-icon">🔊</span>
           <span class="settings-card-text">
@@ -754,6 +762,39 @@
             <span class="field-label">Model</span>
             <select id="select-llm-model" data-custom="input-llm-model-custom"></select>
             <input type="text" id="input-llm-model-custom" class="model-engine-custom" placeholder="tên model" autocomplete="off" style="display:none" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail: Micro — processing chain for the microphone source.
+           Runs in Rust off the audio thread (see src-tauri/src/audio/mic_pipeline.rs). -->
+      <div class="settings-tab-content" id="tab-mic">
+        <button class="settings-back-row" data-screen="settings-home">‹ Cài đặt</button>
+
+        <div class="settings-section">
+          <span class="field-label">Xử lý âm thanh micro</span>
+          <p class="hint">Áp dụng khi nguồn là 🎤 Mic. Thay đổi có hiệu lực ở phiên thu kế tiếp.</p>
+          <label class="checkbox-field" style="display:block;margin-top:8px">
+            <input type="checkbox" id="check-mic-highpass" /> Lọc tiếng ù / rung (high-pass 80 Hz)
+          </label>
+          <label class="checkbox-field" style="display:block;margin-top:6px">
+            <input type="checkbox" id="check-mic-agc" /> Tự động tăng âm (AGC) — giọng xa nghe rõ hơn
+          </label>
+          <label class="checkbox-field" style="display:block;margin-top:6px">
+            <input type="checkbox" id="check-mic-denoise" /> Khử tiếng ồn nền (GTCRN, chạy trên máy)
+          </label>
+          <label class="checkbox-field" style="display:block;margin-top:6px">
+            <input type="checkbox" id="check-mic-vad" /> Chỉ gửi khi có tiếng nói (VAD) — tiết kiệm phí STT
+          </label>
+          <p class="hint">Gợi ý: bật khử ồn; bật VAD nếu lớp có nhiều khoảng lặng. Khử ồn quá tay có thể làm nhận dạng kém — tắt nếu thấy sai nhiều hơn.</p>
+        </div>
+
+        <div class="settings-section" id="section-audio-models">
+          <span class="field-label">Model khử ồn + VAD <span id="audio-models-status" class="key-status"></span></span>
+          <p class="hint">Hai file ONNX nhỏ (~1,2 MB) từ sherpa-onnx, kiểm tra SHA-256, lưu trong thư mục dữ liệu của app.</p>
+          <div class="input-group" style="margin-top:6px;align-items:center">
+            <button id="btn-audio-models-download" class="btn-secondary small" type="button">Tải model</button>
+            <span id="audio-models-progress" class="hint" style="margin:0 0 0 8px"></span>
           </div>
         </div>
       </div>

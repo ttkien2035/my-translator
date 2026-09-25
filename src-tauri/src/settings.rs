@@ -117,6 +117,16 @@ pub struct Settings {
     pub llm_base_url: String,
     pub llm_api_key: String,
     pub llm_model: String,
+
+    // ── Microphone chain (Settings → Micro) ──
+    /// 80 Hz high-pass (rumble / handling noise).
+    pub mic_highpass: bool,
+    /// Software AGC: lifts a distant speaker to a steady level.
+    pub mic_agc: bool,
+    /// GTCRN denoiser (needs the downloaded model; ignored otherwise).
+    pub mic_denoise: bool,
+    /// Silero VAD gate: send only speech (saves STT cost; needs the model).
+    pub mic_vad: bool,
 }
 
 impl Default for Settings {
@@ -165,6 +175,10 @@ impl Default for Settings {
             llm_base_url: String::new(),
             llm_api_key: String::new(),
             llm_model: String::new(),
+            mic_highpass: true,
+            mic_agc: true,
+            mic_denoise: true,
+            mic_vad: false,
         }
     }
 }

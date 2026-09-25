@@ -1,49 +1,46 @@
+//! Microphone capture via cpal. The audio callback only forwards raw frames
+//! to the processing thread (see `mic_pipeline`); all DSP happens off the
+//! real-time thread. Stopping drops the stream, which closes the raw queue,
+//! which ends the processing thread and frees its models.
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
 
-use super::TARGET_SAMPLE_RATE;
+use super::mic_pipeline::{self, MicOptions};
 
-/// Microphone capture using cpal.
-/// Captures from the default input device and converts to PCM s16le 16kHz mono.
+/// Raw-frame queue depth. Callbacks arrive every ~10 ms; 64 entries is ~0.6 s
+/// of slack before frames are dropped (the callback never blocks).
+const RAW_QUEUE_DEPTH: usize = 64;
+
+/// Microphone capture: default input device → PCM s16le 16 kHz mono.
 pub struct MicCapture {
-    is_capturing: Arc<AtomicBool>,
-    /// We store the stream here to keep it alive.
-    /// cpal::Stream is !Send, so can't move to another thread.
-    /// Using Box<dyn StreamTrait> to erase the concrete type.
-    _stream: Option<cpal::Stream>,
+    /// Held to keep the stream alive; dropping it stops capture.
+    stream: Option<cpal::Stream>,
 }
 
-// SAFETY: MicCapture is only accessed through Mutex in AudioState,
-// so concurrent access is properly synchronized. The cpal::Stream
-// is created and dropped on the same thread (main thread via Tauri command).
+// SAFETY: MicCapture is only accessed through the Mutex in AudioState, and
+// the cpal::Stream is created and dropped on the same (main) thread via sync
+// Tauri commands. cpal::Stream is !Send only because some backends require
+// same-thread use; we never move it across threads.
 unsafe impl Send for MicCapture {}
 
 impl MicCapture {
     pub fn new() -> Self {
-        Self {
-            is_capturing: Arc::new(AtomicBool::new(false)),
-            _stream: None,
-        }
+        Self { stream: None }
     }
 
-    /// Start capturing from the microphone.
-    /// Returns a receiver that yields PCM s16le 16kHz mono audio chunks.
-    pub fn start(&mut self) -> Result<mpsc::Receiver<Vec<u8>>, String> {
-        if self.is_capturing.load(Ordering::SeqCst) {
+    /// Start capturing. Returns a receiver of processed s16le 16 kHz chunks.
+    pub fn start(&mut self, opts: MicOptions) -> Result<mpsc::Receiver<Vec<u8>>, String> {
+        if self.stream.is_some() {
             return Err("Already capturing".to_string());
         }
 
         let host = cpal::default_host();
-
-        // List available input devices for debugging
         let input_devices: Vec<String> = host
             .input_devices()
             .map(|devs| devs.filter_map(|d| d.name().ok()).collect())
             .unwrap_or_default();
         println!("[Mic] Available input devices: {:?}", input_devices);
-
         if input_devices.is_empty() {
             return Err(
                 "No microphone found. Connect an external microphone or headset.".to_string(),
@@ -53,22 +50,16 @@ impl MicCapture {
         let device = host
             .default_input_device()
             .ok_or("No default microphone found. Connect an external microphone or headset.")?;
-
         println!("[Mic] Device: {:?}", device.name().unwrap_or_default());
 
-        // Try default config first, fallback to supported configs
+        // Default config first; otherwise the first supported config at 48 kHz.
         let default_config = device
             .default_input_config()
             .or_else(|e| {
-                println!(
-                    "[Mic] default_input_config failed: {}, trying supported configs",
-                    e
-                );
-                // Fallback: find a supported config
+                println!("[Mic] default_input_config failed: {e}, trying supported configs");
                 let mut configs = device
                     .supported_input_configs()
-                    .map_err(|e2| format!("No supported input configs: {}", e2))?;
-                // Prefer F32, then I16
+                    .map_err(|e2| format!("No supported input configs: {e2}"))?;
                 configs
                     .find(|c| c.sample_format() == cpal::SampleFormat::F32)
                     .or_else(|| {
@@ -78,7 +69,6 @@ impl MicCapture {
                             .and_then(|mut c| c.next())
                     })
                     .map(|c| {
-                        // Pick sample rate: prefer 48kHz, else max
                         let rate =
                             if c.min_sample_rate().0 <= 48000 && c.max_sample_rate().0 >= 48000 {
                                 cpal::SampleRate(48000)
@@ -87,98 +77,70 @@ impl MicCapture {
                             };
                         c.with_sample_rate(rate)
                     })
-                    .ok_or_else(|| format!("No suitable input config found (original: {})", e))
+                    .ok_or_else(|| format!("No suitable input config found (original: {e})"))
             })
-            .map_err(|e| format!("Failed to get default input config: {}", e))?;
+            .map_err(|e| format!("Failed to get default input config: {e}"))?;
 
+        let source_rate = default_config.sample_rate().0;
+        let channels = default_config.channels() as usize;
         println!(
-            "[Mic] Config: rate={}, channels={}, format={:?}",
-            default_config.sample_rate().0,
-            default_config.channels(),
+            "[Mic] Config: rate={source_rate}, channels={channels}, format={:?}, opts={opts:?}",
             default_config.sample_format()
         );
 
-        let source_sample_rate = default_config.sample_rate().0;
-        let source_channels = default_config.channels() as usize;
+        // Raw frames: callback → DSP thread (bounded). Processed PCM: DSP → forwarder.
+        let (raw_tx, raw_rx) = mpsc::sync_channel::<Vec<f32>>(RAW_QUEUE_DEPTH);
+        let (pcm_tx, pcm_rx) = mpsc::channel::<Vec<u8>>();
+        std::thread::Builder::new()
+            .name("mic-dsp".into())
+            .spawn(move || mic_pipeline::run(raw_rx, pcm_tx, source_rate, channels, opts))
+            .map_err(|e| format!("Failed to spawn mic DSP thread: {e}"))?;
 
-        let (sender, receiver) = mpsc::channel::<Vec<u8>>();
-        // Flag is raised only after the stream is built AND playing, so a build
-        // failure below never leaves the capture marked as running.
-        let is_capturing = self.is_capturing.clone();
-
-        // Build the input config targeting our desired format
         let stream_config = cpal::StreamConfig {
             channels: default_config.channels(),
             sample_rate: default_config.sample_rate(),
             buffer_size: cpal::BufferSize::Default,
         };
-
-        let target_rate = TARGET_SAMPLE_RATE;
-        let err_fn = |err| eprintln!("Microphone input error: {}", err);
+        let err_fn = |err| eprintln!("[Mic] input error: {err}");
 
         let stream = match default_config.sample_format() {
             cpal::SampleFormat::F32 => device.build_input_stream(
                 &stream_config,
-                move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                    if !is_capturing.load(Ordering::SeqCst) {
-                        return;
-                    }
-                    let pcm = convert_f32_to_pcm_s16le(
-                        data,
-                        source_channels,
-                        source_sample_rate,
-                        target_rate,
-                    );
-                    if !pcm.is_empty() {
-                        let _ = sender.send(pcm);
-                    }
+                move |data: &[f32], _: &cpal::InputCallbackInfo| forward(&raw_tx, data.to_vec()),
+                err_fn,
+                None,
+            ),
+            cpal::SampleFormat::I16 => device.build_input_stream(
+                &stream_config,
+                move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                    forward(&raw_tx, data.iter().map(|&s| s as f32 / 32768.0).collect())
                 },
                 err_fn,
                 None,
             ),
-            cpal::SampleFormat::I16 => {
-                let is_capturing = self.is_capturing.clone();
-                device.build_input_stream(
-                    &stream_config,
-                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                        if !is_capturing.load(Ordering::SeqCst) {
-                            return;
-                        }
-                        let pcm = convert_i16_to_pcm_s16le(
-                            data,
-                            source_channels,
-                            source_sample_rate,
-                            target_rate,
-                        );
-                        if !pcm.is_empty() {
-                            let _ = sender.send(pcm);
-                        }
-                    },
-                    err_fn,
-                    None,
-                )
-            }
-            format => {
-                return Err(format!("Unsupported sample format: {:?}", format));
-            }
+            format => return Err(format!("Unsupported sample format: {format:?}")),
         }
-        .map_err(|e| format!("Failed to build input stream: {}", e))?;
+        .map_err(|e| format!("Failed to build input stream: {e}"))?;
 
         stream
             .play()
-            .map_err(|e| format!("Failed to start mic stream: {}", e))?;
-
-        self.is_capturing.store(true, Ordering::SeqCst);
-        // Store stream to keep it alive
-        self._stream = Some(stream);
-
-        Ok(receiver)
+            .map_err(|e| format!("Failed to start mic stream: {e}"))?;
+        self.stream = Some(stream);
+        Ok(pcm_rx)
     }
 
+    /// Stop capturing: dropping the stream closes the raw queue, which ends
+    /// the DSP thread and, through its dropped sender, the forwarder.
     pub fn stop(&mut self) {
-        self.is_capturing.store(false, Ordering::SeqCst);
-        // Drop the stream to stop capturing
-        self._stream = None;
+        self.stream = None;
+    }
+}
+
+/// Real-time callback side: never block. A full queue means the DSP thread is
+/// behind; dropping this callback's frames is the only safe option.
+fn forward(tx: &mpsc::SyncSender<Vec<f32>>, frames: Vec<f32>) {
+    if let Err(mpsc::TrySendError::Full(_)) = tx.try_send(frames) {
+        // dropped
     }
 }
 
@@ -186,103 +148,4 @@ impl Default for MicCapture {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Convert f32 audio to PCM s16le, with mono mixdown and resampling
-fn convert_f32_to_pcm_s16le(
-    data: &[f32],
-    channels: usize,
-    source_rate: u32,
-    target_rate: u32,
-) -> Vec<u8> {
-    // Step 1: Mix to mono
-    let mono: Vec<f32> = if channels > 1 {
-        data.chunks(channels)
-            .map(|frame| frame.iter().sum::<f32>() / channels as f32)
-            .collect()
-    } else {
-        data.to_vec()
-    };
-
-    // Step 2: Resample if needed
-    let resampled = if source_rate != target_rate {
-        simple_resample(&mono, source_rate, target_rate)
-    } else {
-        mono
-    };
-
-    // Step 3: Convert to s16le bytes
-    resampled
-        .iter()
-        .flat_map(|&s| {
-            let clamped = s.clamp(-1.0, 1.0);
-            let s16 = (clamped * 32767.0) as i16;
-            s16.to_le_bytes()
-        })
-        .collect()
-}
-
-/// Convert i16 audio to PCM s16le, with mono mixdown and resampling
-fn convert_i16_to_pcm_s16le(
-    data: &[i16],
-    channels: usize,
-    source_rate: u32,
-    target_rate: u32,
-) -> Vec<u8> {
-    // Step 1: Mix to mono and convert to f32
-    let mono: Vec<f32> = if channels > 1 {
-        data.chunks(channels)
-            .map(|frame| {
-                let sum: f32 = frame.iter().map(|&s| s as f32).sum();
-                sum / (channels as f32 * 32768.0)
-            })
-            .collect()
-    } else {
-        data.iter().map(|&s| s as f32 / 32768.0).collect()
-    };
-
-    // Step 2: Resample if needed
-    let resampled = if source_rate != target_rate {
-        simple_resample(&mono, source_rate, target_rate)
-    } else {
-        mono
-    };
-
-    // Step 3: Convert to s16le bytes
-    resampled
-        .iter()
-        .flat_map(|&s| {
-            let clamped = s.clamp(-1.0, 1.0);
-            let s16 = (clamped * 32767.0) as i16;
-            s16.to_le_bytes()
-        })
-        .collect()
-}
-
-/// Simple linear interpolation resampler
-/// Good enough for speech (not for music production)
-fn simple_resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
-    if from_rate == to_rate || samples.is_empty() {
-        return samples.to_vec();
-    }
-
-    let ratio = from_rate as f64 / to_rate as f64;
-    let output_len = (samples.len() as f64 / ratio) as usize;
-    let mut output = Vec::with_capacity(output_len);
-
-    for i in 0..output_len {
-        let src_pos = i as f64 * ratio;
-        let src_idx = src_pos as usize;
-        let frac = src_pos - src_idx as f64;
-
-        if src_idx + 1 < samples.len() {
-            // Linear interpolation between two adjacent samples
-            let s = samples[src_idx] as f64 * (1.0 - frac) + samples[src_idx + 1] as f64 * frac;
-            output.push(s as f32);
-        } else if src_idx < samples.len() {
-            output.push(samples[src_idx]);
-        }
-    }
-
-    output
 }

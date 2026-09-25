@@ -427,6 +427,7 @@ class App {
             this._updateModeUI(e.target.value);
         });
         this._bindModelTab();
+        this._bindMicTab();
 
         // Welcome-screen engine cards: pick a class (standard / openai),
         // remember it, hide the picker, sync the rest of the UI.
@@ -807,6 +808,16 @@ class App {
             subModel.textContent = `${engineNames[mode] || mode}${engModel ? ` (${engModel})` : ''}${llm}`;
         }
 
+        const subMic = document.getElementById('card-mic-sub');
+        if (subMic) {
+            const on = [];
+            if (s.mic_denoise !== false) on.push('khử ồn');
+            if (s.mic_agc !== false) on.push('AGC');
+            if (s.mic_vad) on.push('VAD');
+            const models = this._audioModelsReady === false ? ' · ⚠️ chưa tải model' : '';
+            subMic.textContent = (on.length ? on.join(' · ') : 'không xử lý') + models;
+        }
+
         // TTS card: cloud-realtime engines run text-only — reflect on the card, never hide.
         const isCloudRealtime = mode === 'openai' || mode === 'qwen';
         const provNames = {
@@ -999,6 +1010,80 @@ class App {
         }
     }
 
+    // ─── Settings → Micro tab ──────────────────────────────
+    // Toggles for the Rust mic chain + on-demand download of the two small
+    // ONNX models (GTCRN denoiser, Silero VAD) it can use.
+
+    _bindMicTab() {
+        document.getElementById('btn-audio-models-download')
+            ?.addEventListener('click', () => this._downloadAudioModels());
+    }
+
+    _populateMicTab() {
+        const s = settingsManager.get();
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
+        set('check-mic-highpass', s.mic_highpass !== false);
+        set('check-mic-agc', s.mic_agc !== false);
+        set('check-mic-denoise', s.mic_denoise !== false);
+        set('check-mic-vad', !!s.mic_vad);
+        this._refreshAudioModelsStatus();
+    }
+
+    _collectMicTab() {
+        const get = (id, dflt) => document.getElementById(id)?.checked ?? dflt;
+        return {
+            mic_highpass: get('check-mic-highpass', true),
+            mic_agc: get('check-mic-agc', true),
+            mic_denoise: get('check-mic-denoise', true),
+            mic_vad: get('check-mic-vad', false),
+        };
+    }
+
+    async _refreshAudioModelsStatus() {
+        const status = document.getElementById('audio-models-status');
+        const btn = document.getElementById('btn-audio-models-download');
+        try {
+            const list = await invoke('audio_models_status');
+            const missing = list.filter(m => !m.installed);
+            this._audioModelsReady = missing.length === 0;
+            if (status) {
+                status.className = 'key-status ' + (this._audioModelsReady ? 'ok' : '');
+                status.textContent = this._audioModelsReady
+                    ? '✓ đã cài'
+                    : `○ chưa tải (${(missing.reduce((a, m) => a + m.size, 0) / 1048576).toFixed(1)} MB)`;
+            }
+            if (btn) btn.style.display = this._audioModelsReady ? 'none' : '';
+        } catch (err) {
+            if (status) { status.className = 'key-status bad'; status.textContent = '✗ không kiểm tra được'; }
+        }
+    }
+
+    async _downloadAudioModels() {
+        const btn = document.getElementById('btn-audio-models-download');
+        const progress = document.getElementById('audio-models-progress');
+        if (btn) btn.disabled = true;
+        const onProgress = new Channel();
+        onProgress.onmessage = (msg) => {
+            if (!progress) return;
+            if (msg.phase === 'downloading' && msg.total > 0) {
+                progress.textContent = `${msg.id}: ${Math.floor((msg.received / msg.total) * 100)}%`;
+            } else if (msg.phase === 'done') {
+                progress.textContent = `${msg.id}: ✓`;
+            }
+        };
+        try {
+            await invoke('audio_models_download', { onProgress });
+            this._showToast('Đã tải model khử ồn + VAD ✓', 'success');
+            if (progress) progress.textContent = '';
+        } catch (err) {
+            this._showToast(`Tải model thất bại: ${err}`, 'error');
+            if (progress) progress.textContent = '';
+        } finally {
+            if (btn) btn.disabled = false;
+            await this._refreshAudioModelsStatus();
+        }
+    }
+
     // ─── Settings Form ─────────────────────────────────────
 
     _populateSettingsForm() {
@@ -1015,6 +1100,7 @@ class App {
         this._updateModeUI(s.translation_mode || 'soniox');
         this._refreshKeyStatus();
         this._populateModelTab();
+        this._populateMicTab();
 
         // Translation type (one-way / two-way)
         const translationType = s.translation_type || 'one_way';
@@ -1162,6 +1248,7 @@ class App {
             show_original: document.getElementById('check-show-original').checked,
             custom_context: null,
             ...this._collectModelTab(),
+            ...this._collectMicTab(),
         };
 
         // Parse custom context (rich format)

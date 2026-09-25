@@ -51,6 +51,11 @@ const DEFAULT_SETTINGS = {
   llm_base_url: '',
   llm_api_key: '',
   llm_model: '',
+  // Settings → Micro (mirror settings.rs defaults)
+  mic_highpass: true,
+  mic_agc: true,
+  mic_denoise: true,
+  mic_vad: false,
 };
 
 class SettingsManager {

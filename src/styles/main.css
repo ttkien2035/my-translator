@@ -2627,3 +2627,13 @@ body.expanded #library-panel { padding: 8px 6%; }
 }
 .engine-pill-dot.ok { background: #4ade80; }
 .engine-pill-btn:not(.active) .engine-pill-dot { display: none; }
+
+/* Settings → Micro: stacked checkbox rows */
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.checkbox-field input[type="checkbox"] { margin: 0; }

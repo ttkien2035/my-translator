@@ -103,6 +103,8 @@ pub fn run() {
             commands::audio::start_capture,
             commands::audio::stop_capture,
             commands::audio::check_permissions,
+            commands::audio_models::audio_models_status,
+            commands::audio_models::audio_models_download,
             commands::transcript::save_transcript,
             commands::transcript::open_transcript_dir,
             commands::transcript::list_transcripts,

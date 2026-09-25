@@ -23,6 +23,11 @@ const OPENAI_REALTIME_BASE: &str = "wss://api.openai.com/v1/realtime/translation
 const OPENAI_DEFAULT_MODEL: &str = "gpt-realtime-translate";
 /// Bounded audio queue: 200 ms chunks → ~10 s of backlog before we drop.
 const AUDIO_QUEUE_CHUNKS: usize = 50;
+/// Capture batches are 200 ms; the server processes faster than real time, so
+/// a short backlog is caught up naturally. Past 5 s we skip ahead to 2 s.
+const CHUNK_SECS: f32 = 0.2;
+const BACKLOG_SKIP_ABOVE: usize = 25;
+const BACKLOG_KEEP: usize = 10;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// WS URL for `model`; falls back to the default when empty. Model ids are
@@ -256,6 +261,21 @@ async fn run_session(
             }
 
             Some(audio_chunk) = audio_rx.recv() => {
+                // Backlog policy for live translation: stay current. If the
+                // socket fell behind by more than BACKLOG_SKIP_ABOVE (network
+                // stall), skip the oldest chunks down to BACKLOG_KEEP and tell
+                // the UI how much was dropped.
+                if audio_rx.len() > BACKLOG_SKIP_ABOVE {
+                    let mut dropped = 0usize;
+                    while audio_rx.len() > BACKLOG_KEEP {
+                        if audio_rx.try_recv().is_err() { break; }
+                        dropped += 1;
+                    }
+                    let _ = event_ch.send(OpenAiEvent::Status {
+                        state: "backlog_skipped".into(),
+                        message: Some(format!("{:.1}", dropped as f32 * CHUNK_SECS)),
+                    });
+                }
                 let b64 = B64.encode(&audio_chunk);
                 let evt = serde_json::json!({
                     "type": "session.input_audio_buffer.append",

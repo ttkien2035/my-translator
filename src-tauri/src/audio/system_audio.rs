@@ -38,8 +38,9 @@ impl SCStreamOutputTrait for AudioHandler {
                         let sample_count = raw_data.len() / 4;
                         let mut pcm_s16 =
                             Vec::with_capacity((sample_count / DECIMATION + 1) * 2);
-                        for chunk in raw_data.chunks_exact(4).step_by(DECIMATION) {
-                            let sample = f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                        for i in (0..sample_count).step_by(DECIMATION) {
+                            let b = &raw_data[i * 4..i * 4 + 4];
+                            let sample = f32::from_ne_bytes([b[0], b[1], b[2], b[3]]);
                             let s16 = (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
                             pcm_s16.extend_from_slice(&s16.to_le_bytes());
                         }

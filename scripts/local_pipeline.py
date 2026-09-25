@@ -374,11 +374,30 @@ class LocalPipeline:
 
         processed_pos = 0  # Track how far we've processed
 
+        # Backlog policy: ASR+LLM may run slower than real time. Rather than
+        # letting unprocessed audio pile up (memory grows ~115 MB/h and the
+        # translation drifts ever further behind the lecturer), keep at most
+        # `max_backlog_bytes` of unprocessed audio and skip ahead past the rest.
+        max_backlog_bytes = self.chunk_bytes * 2
+
         while self.running:
             time.sleep(0.5)  # Check every 500ms
 
             with self.lock:
                 buf_len = len(self.audio_buffer)
+                backlog = buf_len - processed_pos
+                if backlog > max_backlog_bytes:
+                    skipped = backlog - max_backlog_bytes
+                    processed_pos += skipped
+                    emit({
+                        "type": "status",
+                        "message": f"backlog_skipped:{skipped / (self.sample_rate * self.bytes_per_sample):.1f}",
+                    })
+                # Drop audio that is already processed so the buffer stays bounded.
+                if processed_pos > 0:
+                    del self.audio_buffer[:processed_pos]
+                    processed_pos = 0
+                    buf_len = len(self.audio_buffer)
 
             # When we have enough data for a chunk
             if buf_len - processed_pos >= self.chunk_bytes:

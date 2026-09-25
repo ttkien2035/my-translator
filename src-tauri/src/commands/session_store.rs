@@ -293,22 +293,23 @@ pub fn export_session_srt(app: AppHandle, id: String) -> Result<String, String> 
         serde_json::from_str(&json_str).map_err(|e| format!("Parse failed: {}", e))?;
 
     let mut out = String::new();
-    let mut idx: u32 = 1;
     let mut flat: Vec<&Segment> = data.chunks.iter().flat_map(|c| c.segments.iter()).collect();
     flat.sort_by(|a, b| a.ts.cmp(&b.ts));
     for (i, seg) in flat.iter().enumerate() {
-        let start = seg.ts.clone();
+        let start = &seg.ts;
         // End = next segment's ts, or +3s if last
-        let end = if i + 1 < flat.len() {
-            flat[i + 1].ts.clone()
-        } else {
-            add_seconds_hms(&seg.ts, 3)
+        let end = match flat.get(i + 1) {
+            Some(next) => next.ts.clone(),
+            None => add_seconds_hms(&seg.ts, 3),
         };
+        // SRT cue numbers are 1-based.
         out.push_str(&format!(
             "{}\n{},000 --> {},000\n{}\n\n",
-            idx, start, end, seg.tgt
+            i + 1,
+            start,
+            end,
+            seg.tgt
         ));
-        idx += 1;
     }
     Ok(out)
 }

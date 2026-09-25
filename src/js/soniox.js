@@ -27,6 +27,9 @@ const CONTEXT_HISTORY_CHARS = 500;
 // After a seamless reset, keep the old socket open this long at most while it
 // delivers the finals for audio already sent.
 const OLD_WS_DRAIN_TIMEOUT_MS = 5000;
+// 16 kHz s16le mono; skip audio once the socket holds more than 5 s unsent.
+const BYTES_PER_SECOND = 32000;
+const MAX_BUFFERED_BYTES = 5 * BYTES_PER_SECOND;
 
 // Keepalive: send every 15s to prevent timeout when no audio
 const KEEPALIVE_INTERVAL_MS = 15000;
@@ -43,6 +46,9 @@ export class SonioxClient {
         this._keepaliveTimer = null;
         this._recentTranslations = []; // Rolling buffer of recent translations
         this._drainingWs = null; // Old socket still delivering finals after a reset
+        this._backlogActive = false; // Skipping audio because the socket can't drain
+        this._skippedBytes = 0;
+        this.onBacklog = null; // (active: boolean, skippedSeconds: number) => void
 
         // Callbacks
         this.onOriginal = null;       // (text, speaker, language) => {}
@@ -255,9 +261,26 @@ export class SonioxClient {
      * Send raw PCM audio data
      */
     sendAudio(pcmData) {
-        if (this.ws?.readyState === WebSocket.OPEN) {
-            this.ws.send(pcmData);
+        const ws = this.ws;
+        if (ws?.readyState !== WebSocket.OPEN) return;
+        // Backlog policy for live translation: stay current. `bufferedAmount`
+        // is audio the browser still hasn't put on the wire; past ~5 s we are
+        // that far behind the lecturer, so skip instead of queueing. Once the
+        // socket drains we resume from "now" and report how much was skipped.
+        if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+            this._skippedBytes += pcmData.byteLength ?? pcmData.length ?? 0;
+            if (!this._backlogActive) {
+                this._backlogActive = true;
+                this.onBacklog?.(true, 0);
+            }
+            return;
         }
+        if (this._backlogActive) {
+            this._backlogActive = false;
+            this.onBacklog?.(false, this._skippedBytes / BYTES_PER_SECOND);
+            this._skippedBytes = 0;
+        }
+        ws.send(pcmData);
     }
 
     /**

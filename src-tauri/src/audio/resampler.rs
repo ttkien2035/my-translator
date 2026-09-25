@@ -41,8 +41,10 @@ impl UpsamplerTo24k {
     /// Push s16le 16kHz mono samples; returns 24kHz s16le bytes ready to send.
     pub fn push(&mut self, pcm_s16le: &[u8]) -> Result<Vec<u8>, String> {
         // Decode s16le → f32 normalized
-        for chunk in pcm_s16le.chunks_exact(2) {
-            let s = i16::from_le_bytes([chunk[0], chunk[1]]);
+        let n = pcm_s16le.len() / 2;
+        self.input_buf.reserve(n);
+        for i in 0..n {
+            let s = i16::from_le_bytes([pcm_s16le[2 * i], pcm_s16le[2 * i + 1]]);
             self.input_buf.push(s as f32 / 32768.0);
         }
 

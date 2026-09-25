@@ -648,6 +648,8 @@ class App {
         sonioxClient.onConfidence = (avgConfidence) => {
             this.transcriptUI.setConfidence(avgConfidence);
         };
+
+        sonioxClient.onBacklog = (active, skippedSec) => this._onBacklog(active, skippedSec);
     }
 
     _bindSettingsForm() {
@@ -2625,9 +2627,10 @@ class App {
         this.openAiOutputQueue = new OpenAiAudioOutputQueue();
         this.openAiClient = new OpenAiRealtimeClient();
 
-        this.openAiClient.onStatusChange = (state) => {
+        this.openAiClient.onStatusChange = (state, message) => {
             if (state === 'ready') this._updateStatus('connected');
             else if (state === 'connecting') this._updateStatus('connecting');
+            else if (state === 'backlog_skipped') this._onBacklog(false, parseFloat(message) || 0);
         };
         this.openAiClient.onProvisional = (text) => {
             this.transcriptUI.setProvisional(text, null, null);
@@ -2710,9 +2713,10 @@ class App {
 
         this.qwenClient = new QwenRealtimeClient();
 
-        this.qwenClient.onStatusChange = (state) => {
+        this.qwenClient.onStatusChange = (state, message) => {
             if (state === 'ready') this._updateStatus('connected');
             else if (state === 'connecting') this._updateStatus('connecting');
+            else if (state === 'backlog_skipped') this._onBacklog(false, parseFloat(message) || 0);
         };
         this.qwenClient.onProvisional = (text) => {
             this.transcriptUI.setProvisional(text, null, null);
@@ -2962,6 +2966,10 @@ class App {
                 break;
             case 'status':
                 const msg = data.message || 'Loading...';
+                if (msg.startsWith('backlog_skipped:')) {
+                    this._onBacklog(false, parseFloat(msg.slice('backlog_skipped:'.length)) || 0);
+                    break;
+                }
                 // Status bar: show compact message (strip [pipeline] prefix)
                 const statusText = document.getElementById('status-text');
                 if (statusText) {
@@ -3297,6 +3305,26 @@ class App {
     }
 
     // ─── Status ────────────────────────────────────────────
+
+    /**
+     * The engine fell behind live audio (network stall, or Local MLX slower
+     * than real time). `active` = currently skipping; on recovery `skippedSec`
+     * is how much speech was dropped to get back to "now". Staying current
+     * beats a drifting delay for live lecture translation.
+     */
+    _onBacklog(active, skippedSec) {
+        if (active) {
+            if (!this._backlogToastShown) {
+                this._backlogToastShown = true;
+                this._showToast('⏩ Mạng chậm — đang bỏ bớt để bám kịp lời giảng', 'error');
+            }
+            return;
+        }
+        this._backlogToastShown = false;
+        if (skippedSec >= 0.5) {
+            this._showToast(`⏩ Đã bỏ qua ${skippedSec.toFixed(1)} s để bám kịp`, 'error');
+        }
+    }
 
     _updateStatus(status) {
         const dot = document.getElementById('status-indicator');

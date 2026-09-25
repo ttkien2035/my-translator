@@ -260,11 +260,8 @@ impl LocalTtsState {
     /// in-flight synthesis is reading the model files before they are removed.
     pub fn evict(&self, id: &str) -> Option<Engine> {
         let mut list = self.engines.lock().ok()?;
-        if let Some(pos) = list.iter().position(|(k, _)| k == id) {
-            Some(list.remove(pos).1)
-        } else {
-            None
-        }
+        let pos = list.iter().position(|(k, _)| k == id)?;
+        Some(list.remove(pos).1)
     }
 }
 
@@ -382,9 +379,10 @@ pub async fn local_tts_list_models(
             if !p.is_dir() {
                 continue;
             }
-            if name.starts_with(".tmp-") {
-                let _ = std::fs::remove_dir_all(&p);
-            } else if CATALOG.iter().any(|v| v.id == name) && !is_installed(&p) {
+            // Stale temp dirs and half-installed catalog voices are garbage.
+            let stale_tmp = name.starts_with(".tmp-");
+            let half_installed = CATALOG.iter().any(|v| v.id == name) && !is_installed(&p);
+            if stale_tmp || half_installed {
                 let _ = std::fs::remove_dir_all(&p);
             }
         }
@@ -437,7 +435,7 @@ pub async fn local_tts_list_models(
             });
         }
     }
-    list.sort_by(|a, b| a.display.to_lowercase().cmp(&b.display.to_lowercase()));
+    list.sort_by_key(|v| v.display.to_lowercase());
     Ok(list)
 }
 

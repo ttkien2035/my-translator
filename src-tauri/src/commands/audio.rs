@@ -58,34 +58,19 @@ pub fn start_capture(
             mic.start(mic_options(&settings))?
         }
         "both" => {
-            // Start both sources and merge into a single receiver
+            // Start both sources and MIX them (sample sum), not concatenate.
             let sys = state.system_audio.lock().map_err(|e| e.to_string())?;
             let sys_rx = sys.start()?;
             let mut mic = state.microphone.lock().map_err(|e| e.to_string())?;
-            let mic_rx = mic.start(mic_options(&settings))?;
-
-            let (merged_tx, merged_rx) = mpsc::channel::<Vec<u8>>();
-            let tx1 = merged_tx.clone();
-            let tx2 = merged_tx;
-
-            // Forward system audio to merged channel
-            std::thread::spawn(move || {
-                while let Ok(data) = sys_rx.recv() {
-                    if tx1.send(data).is_err() {
-                        break;
-                    }
+            let mic_rx = match mic.start(mic_options(&settings)) {
+                Ok(rx) => rx,
+                Err(e) => {
+                    // Don't leave system capture running for a source that failed.
+                    sys.stop();
+                    return Err(e);
                 }
-            });
-            // Forward mic audio to merged channel
-            std::thread::spawn(move || {
-                while let Ok(data) = mic_rx.recv() {
-                    if tx2.send(data).is_err() {
-                        break;
-                    }
-                }
-            });
-
-            merged_rx
+            };
+            spawn_mixer(sys_rx, mic_rx)
         }
         _ => return Err(format!("Unknown source: {}", source)),
     };
@@ -142,6 +127,80 @@ pub fn start_capture(
     *active = Some(forwarder);
 
     Ok(())
+}
+
+/// Mix two 16 kHz s16le mono streams sample-by-sample (sum, clamped).
+///
+/// Driven by whichever side delivers — no timer thread. Each side keeps a
+/// small FIFO; output is the overlap of both. If one side runs ahead by more
+/// than `MIX_LAG_CAP` (clock drift, or the other device stalled) its excess is
+/// emitted alone so audio keeps flowing and no queue can grow unbounded. Ends
+/// when both sources are gone; the returned receiver then disconnects.
+fn spawn_mixer(a: mpsc::Receiver<Vec<u8>>, b: mpsc::Receiver<Vec<u8>>) -> mpsc::Receiver<Vec<u8>> {
+    use std::collections::VecDeque;
+    use std::time::Duration;
+
+    /// 250 ms of s16le at 16 kHz.
+    const MIX_LAG_CAP: usize = 8000;
+
+    let (tx, rx) = mpsc::channel::<Vec<u8>>();
+    std::thread::Builder::new()
+        .name("audio-mixer".into())
+        .spawn(move || {
+            let mut qa: VecDeque<u8> = VecDeque::with_capacity(MIX_LAG_CAP * 2);
+            let mut qb: VecDeque<u8> = VecDeque::with_capacity(MIX_LAG_CAP * 2);
+            let (mut a_alive, mut b_alive) = (true, true);
+            let mut out: Vec<u8> = Vec::with_capacity(MIX_LAG_CAP);
+
+            while a_alive || b_alive {
+                // Block on `a` (system audio delivers continuously); `b` is
+                // drained opportunistically. The timeout keeps `b` flowing if
+                // `a` stalls.
+                if a_alive {
+                    match a.recv_timeout(Duration::from_millis(50)) {
+                        Ok(d) => qa.extend(d),
+                        Err(mpsc::RecvTimeoutError::Timeout) => {}
+                        Err(mpsc::RecvTimeoutError::Disconnected) => a_alive = false,
+                    }
+                }
+                if b_alive {
+                    loop {
+                        match b.try_recv() {
+                            Ok(d) => qb.extend(d),
+                            Err(mpsc::TryRecvError::Empty) => break,
+                            Err(mpsc::TryRecvError::Disconnected) => {
+                                b_alive = false;
+                                break;
+                            }
+                        }
+                    }
+                } else if !a_alive {
+                    break;
+                }
+
+                // Overlap → mixed; excess beyond the cap on either side → solo.
+                let overlap = qa.len().min(qb.len()) & !1;
+                out.clear();
+                for _ in 0..overlap / 2 {
+                    let sa = i16::from_le_bytes([qa.pop_front().unwrap(), qa.pop_front().unwrap()]);
+                    let sb = i16::from_le_bytes([qb.pop_front().unwrap(), qb.pop_front().unwrap()]);
+                    let mixed = (sa as i32 + sb as i32).clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+                    out.extend_from_slice(&mixed.to_le_bytes());
+                }
+                for q in [&mut qa, &mut qb] {
+                    if q.len() > MIX_LAG_CAP {
+                        let solo = (q.len() - MIX_LAG_CAP) & !1;
+                        out.extend(q.drain(..solo));
+                    }
+                }
+                if !out.is_empty() && tx.send(std::mem::take(&mut out)).is_err() {
+                    break; // forwarder gone
+                }
+                out.reserve(MIX_LAG_CAP);
+            }
+        })
+        .expect("spawn audio-mixer thread");
+    rx
 }
 
 /// Resolve the microphone chain from settings. Model stages are only enabled

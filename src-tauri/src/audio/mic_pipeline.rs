@@ -179,7 +179,14 @@ impl MicProcessor {
         })
     }
 
-    /// Process one callback's interleaved frames; appends s16le 16 kHz to `out`.
+    /// Process one callback's interleaved frames; appends s16le 16 kHz mono
+    /// to `out`. Pure function of its inputs (no device, no I/O), so it can be
+    /// driven directly by tests with synthetic buffers of any length.
+    ///
+    /// Output is buffered, not sample-exact per call: the resampler consumes
+    /// whole 10 ms chunks (plus its sinc delay) and output is emitted in 32 ms
+    /// windows, so up to ~1 chunk + 511 samples are held back at any moment.
+    /// With the VAD gate enabled, non-speech windows are withheld entirely.
     pub fn process(&mut self, frames: &[f32], out: &mut Vec<u8>) -> Result<(), String> {
         // 1. Mono mixdown at device rate.
         self.mono.clear();

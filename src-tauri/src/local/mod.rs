@@ -88,7 +88,7 @@ pub async fn local_start(
     }
     .to_string();
 
-    let session = pipeline::start(
+    let session = pipeline::start_with_sink(
         SessionConfig {
             asr_model: asr.model,
             asr_tokens: asr.tokens,
@@ -104,7 +104,9 @@ pub async fn local_start(
                 .map(|g| (g.source.trim().to_string(), g.target.trim().to_string()))
                 .collect(),
         },
-        on_event,
+        Box::new(move |event| {
+            let _ = on_event.send(event);
+        }),
     )?;
 
     let id = {

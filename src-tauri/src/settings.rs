@@ -228,13 +228,18 @@ fn default_local_tts_speed() -> f32 {
     1.0
 }
 
-/// Get the settings file path
+/// Get the settings file path:
+/// `$MT_SETTINGS_DIR/settings.json` when that env var is set (tests/QA work
+/// in a scratch dir without touching real settings), otherwise
 /// ~/Library/Application Support/com.personal.translator/settings.json
 fn settings_path() -> PathBuf {
-    let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    path.push("com.personal.translator");
-    path.push("settings.json");
-    path
+    let dir = match std::env::var_os("MT_SETTINGS_DIR") {
+        Some(d) if !d.is_empty() => PathBuf::from(d),
+        _ => dirs::config_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("com.personal.translator"),
+    };
+    dir.join("settings.json")
 }
 
 impl Settings {
@@ -284,8 +289,11 @@ impl Settings {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize: {}", e))?;
 
-        if path.exists() {
-            // Best effort: a failed backup must not block saving.
+        // Back up the current file only if it is itself valid: after loading
+        // from `.bak` because the main file was corrupt, copying the corrupt
+        // file over the good backup would destroy the last good copy.
+        // Best effort: a failed backup must not block saving.
+        if Self::load_from(&path).is_ok() {
             let _ = fs::copy(&path, backup_path(&path));
         }
 

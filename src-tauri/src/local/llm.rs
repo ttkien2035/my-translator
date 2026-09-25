@@ -76,6 +76,30 @@ impl Llm {
         })
     }
 
+    /// Decode a single token once right after load. On Metal the first
+    /// decode compiles ggml's kernels (~13 s the first time on a machine);
+    /// doing it here, while the UI shows "khởi tạo Metal", keeps that cost off
+    /// the first real sentence. No-op on CPU builds. Failures are ignored —
+    /// the first translation simply pays the cost instead.
+    pub fn warm_up(&self) {
+        if !cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+            return;
+        }
+        let Ok(backend) = backend() else { return };
+        let Ok(tokens) = self.model.str_to_token("Hi", AddBos::Never) else { return };
+        let Some(&tok) = tokens.first() else { return };
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(NonZeroU32::new(N_CTX))
+            .with_n_batch(512)
+            .with_n_threads(self.threads)
+            .with_n_threads_batch(self.threads);
+        let Ok(mut ctx) = self.model.new_context(backend, ctx_params) else { return };
+        let mut batch = LlamaBatch::new(1, 1);
+        if batch.add(tok, 0, &[0], true).is_ok() {
+            let _ = ctx.decode(&mut batch);
+        }
+    }
+
     /// Translate one sentence. `cancel` aborts generation between tokens
     /// (returns an empty string) so a stop never waits for a full sentence.
     ///

@@ -3,6 +3,24 @@ mod commands;
 mod local;
 mod settings;
 
+/// Test seams for QA / integration tests (`src-tauri/tests/*.rs`), which can
+/// only reach public paths. Not an API for the app itself.
+#[doc(hidden)]
+pub mod test_api {
+    /// P6 — mic DSP without cpal: `MicProcessor::new(rate, channels, &opts)`,
+    /// then `process(&interleaved_f32, &mut s16le_out)`.
+    pub use crate::audio::mic_pipeline::{MicOptions, MicProcessor};
+    /// P1/P2/P5 — Local pipeline with a closure sink and an optional stub
+    /// translator (`start_with_translator`).
+    pub use crate::local::llm::TranslateRequest;
+    pub use crate::local::pipeline::{
+        start_with_sink, start_with_translator, LocalEvent, Session, SessionConfig, Translator,
+        TranslatorFactory, UTTERANCE_QUEUE_MAX,
+    };
+    /// P3 — settings load/save; point `MT_SETTINGS_DIR` at a scratch dir first.
+    pub use crate::settings::Settings;
+}
+
 use audio::microphone::MicCapture;
 use audio::SystemAudioCapture;
 use commands::audio::AudioState;

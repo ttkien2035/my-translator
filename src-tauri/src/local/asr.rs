@@ -117,8 +117,14 @@ mod tests {
         eprintln!("silence → {text:?}");
     }
 
-    /// Runtime check against the real model: `MT_TEST_SENSEVOICE_DIR` must
-    /// contain model.int8.onnx, tokens.txt and test_wavs/zh.wav.
+    /// Runtime check against the real model. `MT_TEST_SENSEVOICE_DIR` must
+    /// contain model.int8.onnx and tokens.txt (the installed model dir works).
+    /// Audio: `MT_TEST_WAV` (16 kHz mono s16le), falling back to
+    /// `$MT_TEST_SENSEVOICE_DIR/test_wavs/zh.wav` (present only in the release
+    /// archive, not in the app's install). No wav is committed; on macOS make
+    /// one with:
+    ///   say -v Tingting "资产负债表反映企业在某一特定日期的财务状况。" -o /tmp/zh.aiff
+    ///   afconvert -f WAVE -d LEI16@16000 -c 1 /tmp/zh.aiff /tmp/zh.wav
     #[test]
     #[ignore]
     fn transcribes_chinese_sample() {
@@ -129,7 +135,10 @@ mod tests {
         };
         let dir = Path::new(&dir);
         let asr = Asr::load(&dir.join("model.int8.onnx"), &dir.join("tokens.txt"), "zh", 2).expect("load");
-        let samples = read_wav_s16_mono(&dir.join("test_wavs/zh.wav"));
+        let wav = std::env::var_os("MT_TEST_WAV")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| dir.join("test_wavs/zh.wav"));
+        let samples = read_wav_s16_mono(&wav);
         let t = std::time::Instant::now();
         let text = asr.transcribe(&samples);
         eprintln!("ASR ({:?} for {:.1}s audio): {text}", t.elapsed(), samples.len() as f32 / 16000.0);

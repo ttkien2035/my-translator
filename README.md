@@ -156,10 +156,21 @@ npm run dev                   # mở app kèm DevTools; hot-reload giao diện
 cd src-tauri
 cargo check && cargo clippy --all-targets      # phải sạch cảnh báo
 cargo test                                     # test không cần model
-# Kiểm thử engine Local với model thật (tải SenseVoice int8 + GGUF Qwen về một thư mục tạm):
+# Kiểm thử engine Local với model thật (thư mục model đã cài trong app dùng được):
 MT_TEST_SENSEVOICE_DIR=/path/sensevoice MT_TEST_GGUF=/path/qwen2.5-3b-instruct-q4_k_m.gguf \
-  cargo test --lib local:: -- --include-ignored --nocapture
+  MT_TEST_WAV=/path/zh.wav cargo test --lib local:: -- --include-ignored --nocapture
 ```
+
+Biến môi trường cho kiểm thử:
+
+| Biến | Tác dụng |
+|---|---|
+| `MT_TEST_SENSEVOICE_DIR` | thư mục chứa `model.int8.onnx` + `tokens.txt` |
+| `MT_TEST_WAV` | wav 16 kHz mono s16le cho test SenseVoice (mặc định `$MT_TEST_SENSEVOICE_DIR/test_wavs/zh.wav`). Trên macOS: `say -v Tingting "…" -o zh.aiff && afconvert -f WAVE -d LEI16@16000 -c 1 zh.aiff zh.wav` |
+| `MT_TEST_GGUF` | file GGUF cho test LLM |
+| `MT_SETTINGS_DIR` | app/test đọc-ghi `settings.json` trong thư mục này thay vì thư mục thật — thử settings hỏng/`.bak` mà không đụng cài đặt của bạn |
+
+Test tích hợp (`src-tauri/tests/*.rs`) dùng các seam trong `my_translator_lib::test_api`: `MicProcessor` (DSP micro không cần cpal), `start_with_sink` / `start_with_translator` (phiên Local với closure nhận event và translator giả lập), `Session::finish` (kết thúc êm, dịch nốt hàng đợi), `Settings`.
 
 ### Build bản phát hành (chưa ký)
 

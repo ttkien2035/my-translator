@@ -5,7 +5,7 @@
 #   1. Developer ID Application cert installed (signingIdentity in tauri.conf.json).
 #   2. App-specific password stored via:
 #        xcrun notarytool store-credentials "my-translator" \
-#          --apple-id "phucnt0@gmail.com" --team-id "75EN938B6L"
+#          --apple-id "<your Apple ID>" --team-id "<your Team ID>"
 #
 # Usage:  ./scripts/build-notarized.sh
 #
@@ -24,20 +24,24 @@ if [[ -f "$REPO_ROOT/.env" ]]; then
   set +a
 fi
 
-APPLE_ID="${APPLE_ID:-phucnt0@gmail.com}"
-APPLE_TEAM_ID="${APPLE_TEAM_ID:-75EN938B6L}"
+for v in APPLE_ID APPLE_TEAM_ID APPLE_PASSWORD APPLE_SIGNING_IDENTITY; do
+  if [[ -z "${!v:-}" ]]; then
+    echo "ERROR: $v not set." >&2
+    echo "Put these in .env (gitignored):" >&2
+    echo "  APPLE_ID=you@example.com" >&2
+    echo "  APPLE_TEAM_ID=XXXXXXXXXX" >&2
+    echo "  APPLE_PASSWORD=xxxx-xxxx-xxxx-xxxx   # app-specific password" >&2
+    echo '  APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (XXXXXXXXXX)"' >&2
+    exit 1
+  fi
+done
 
-if [[ -z "${APPLE_PASSWORD:-}" ]]; then
-  echo "ERROR: APPLE_PASSWORD not set." >&2
-  echo "Create .env in repo root with: APPLE_PASSWORD=xxxx-xxxx-xxxx-xxxx" >&2
-  exit 1
-fi
-
-export APPLE_ID APPLE_TEAM_ID APPLE_PASSWORD
+export APPLE_ID APPLE_TEAM_ID APPLE_PASSWORD APPLE_SIGNING_IDENTITY
 
 echo "Building with notarization..."
 echo "  APPLE_ID=$APPLE_ID"
 echo "  APPLE_TEAM_ID=$APPLE_TEAM_ID"
+echo "  APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
 echo "  APPLE_PASSWORD=*** (${#APPLE_PASSWORD} chars)"
 echo
 

@@ -1,194 +1,288 @@
-<p align="center">
-  <img src="banner.png?v=2" alt="My Translator — Real-time Speech Translation">
-</p>
+# My Translator — Lecture Edition
 
-<p align="center">
-  <img src="https://img.shields.io/github/v/release/phuc-nt/my-translator?color=green&label=release" alt="Latest Release">
-  <img src="https://img.shields.io/badge/built_with-Tauri-orange?logo=tauri" alt="Built with Tauri">
-  <img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-black?logo=apple" alt="macOS">
-  <img src="https://img.shields.io/badge/Windows-10%2F11-blue?logo=windows" alt="Windows">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
-  <img src="https://img.shields.io/github/stars/phuc-nt/my-translator?style=flat&color=yellow" alt="Stars">
-</p>
+Ứng dụng dịch giọng nói **theo thời gian thực** trên macOS/Windows, được tuỳ biến cho việc **nghe giảng bằng tiếng Trung và ghi chú bằng tiếng Việt** (ngành tài chính – kinh tế). Fork từ [phuc-nt/my-translator](https://github.com/phuc-nt/my-translator) (MIT), giữ nguyên kiến trúc Tauri + Rust và bổ sung: hồ sơ môn học với từ điển thuật ngữ, khung ghi chú có phím tắt, xử lý micro cho lớp học, và engine offline **thuần Rust** (không Python).
 
-**My Translator** is a real-time speech translation desktop app built with Tauri. It captures audio directly from your system or microphone, transcribes it, and displays translations in a minimal overlay — with no intermediary server involved.
+> *Real-time speech translation desktop app (Tauri 2 + Rust). Tuned for Chinese finance lectures → Vietnamese: course glossaries fed to the STT engine, note-taking hotkeys, a classroom microphone chain, and a pure-Rust offline engine (SenseVoice + Qwen2.5 via llama.cpp).*
 
-> 📖 Installation guides: [macOS (EN)](docs/installation_guide.md) · [macOS (VI)](docs/installation_guide_vi.md) · [Windows (EN)](docs/installation_guide_win.md) · [Windows (VI)](docs/installation_guide_win_vi.md)
+---
 
-### ⬇️ Which build do I download?
+## Mục lục
 
-Grab the matching file from the [latest release](https://github.com/phuc-nt/my-translator/releases/latest):
+1. [Tính năng](#tính-năng)
+2. [Cài đặt cho người dùng (macOS)](#cài-đặt-cho-người-dùng-macos)
+3. [Thiết lập lần đầu](#thiết-lập-lần-đầu)
+4. [Dùng trên lớp — quy trình gợi ý](#dùng-trên-lớp--quy-trình-gợi-ý)
+5. [Phím tắt](#phím-tắt)
+6. [Build từ mã nguồn](#build-từ-mã-nguồn)
+7. [Đóng gói & phát hành cho người dùng phổ thông](#đóng-gói--phát-hành-cho-người-dùng-phổ-thông)
+8. [Dữ liệu nằm ở đâu](#dữ-liệu-nằm-ở-đâu)
+9. [Xử lý sự cố](#xử-lý-sự-cố)
+10. [Kiến trúc & công nghệ](#kiến-trúc--công-nghệ)
 
-| Your machine | File |
+---
+
+## Tính năng
+
+### Bốn engine dịch, chuyển đổi ngay trên thanh công cụ
+
+| Engine | Chạy ở đâu | Độ trễ | Chi phí | Ghi chú |
+|---|---|---|---|---|
+| ☁️ **Soniox** (khuyên dùng) | cloud | ~2 s | ~$0.12/giờ | 70+ ngôn ngữ nguồn; nhận **từ điển thuật ngữ** và ngữ cảnh của hồ sơ môn học |
+| 🌏 **Qwen LiveTranslate** | cloud (Alibaba) | ~4 s | miễn phí (preview) | vào được từ Trung Quốc không cần VPN; chỉ văn bản |
+| ⚡ **OpenAI Realtime** | cloud | ~2 s | ~$4/giờ | có giọng nói dịch; cần VPN ở Trung Quốc |
+| 🖥️ **Local** (offline) | trên máy, thuần Rust | ~2–3 s sau khi hết câu | miễn phí | SenseVoice (nhận dạng) + Qwen2.5-3B (dịch, Metal trên Apple Silicon); từ điển môn học đưa vào prompt |
+
+Tên model của từng engine chỉnh được trong **Cài đặt › Model** (kể cả GGUF tuỳ chỉnh cho Local). Cùng chỗ đó có ô **LLM hỗ trợ** (DeepSeek / Qwen DashScope / Zhipu GLM / OpenAI / bất kỳ API chuẩn OpenAI) dành cho các tính năng dịch lại học thuật và tóm tắt sắp tới.
+
+### Dành cho lớp học
+
+- **Hồ sơ môn học** — mỗi môn một bộ: lĩnh vực, từ nhận dạng, ngữ cảnh nền và **từ điển thuật ngữ nguồn → đích**. Có sẵn **278 thuật ngữ tài chính Trung–Anh–Việt** (báo cáo tài chính, chỉ số, tài chính doanh nghiệp, đầu tư, phái sinh, ngân hàng – tiền tệ, vĩ mô, kinh tế lượng, thuế – quản trị, câu thường gặp trên lớp) nạp bằng một nút bấm. Đổi hồ sơ **giữa giờ** cũng áp dụng ngay.
+- **Khung ghi chú** ngay dưới bản dịch (`⌘⇧N`), tự lưu cùng phiên và xuất ra Markdown. `⌘⇧C` chép câu vừa dịch (kèm giờ và câu gốc). `⌘⇧1/2/3` đánh dấu câu vừa dịch ⭐ quan trọng / ❓ chưa hiểu / 📝 sẽ thi — dấu hiện ngay trên bản dịch và được gom thành mục *Đánh dấu* khi xuất.
+- **Tự đánh dấu 📝** khi giảng viên nói *会考 / 考点 / 期末考 / 必考…* ("phần này sẽ thi").
+- **Thư viện phiên**: mọi buổi được lưu (Markdown + JSON), tìm kiếm, đổi tên, xuất SRT/TXT.
+
+### Micro & âm thanh
+
+- Chuỗi xử lý micro chạy ở thread riêng, không chặn callback âm thanh: resample chống aliasing → lọc thông cao 80 Hz → **khử ồn GTCRN** (trên máy) → **AGC** (chỉ tăng khi có tiếng nói) → **VAD Silero** (tuỳ chọn: chỉ gửi khi có tiếng nói, tiết kiệm phí STT).
+- **Apple Voice Processing** (macOS): khử vang – khử ồn – AGC của hệ thống, gần như không tốn CPU.
+- Nguồn: micro, âm thanh hệ thống (ScreenCaptureKit / WASAPI), hoặc **trộn cả hai**.
+- **Bám kịp thời gian thực**: khi mạng nghẽn hoặc máy chậm, app bỏ phần âm thanh cũ thay vì để bản dịch trễ dần (có báo "⏩ đã bỏ qua X s").
+
+### Đọc & nghe
+
+- **TTS** đọc bản dịch (Edge miễn phí, Microsoft, Google, ElevenLabs, TikTok, hoặc **Piper offline** với giọng Việt) và **chế độ Đọc** cho văn bản dán vào.
+- Giao diện nổi luôn trên cùng, chế độ compact tự ẩn, chế độ hai cột nguồn | dịch, cỡ chữ tới 140 px.
+
+### Kỹ thuật (điểm khác biệt so với bản gốc)
+
+- Audio qua IPC dạng nhị phân, hàng đợi có giới hạn, timeout kết nối, dừng thu tức thì, model giải phóng khi dừng phiên — không rò rỉ, không chạy ngầm khi nhàn rỗi.
+- Không tải gì khi cài app; model chỉ tải khi bạn bấm **Tải model** (khử ồn + VAD ~1,2 MB; Local ~2,3 GB), có kiểm tra SHA-256.
+- `settings.json` ghi atomic + bản sao `.bak`; khoá API không bao giờ ghi ra log.
+
+---
+
+## Cài đặt cho người dùng (macOS)
+
+**Yêu cầu:** macOS 13 trở lên. Chip Apple (M1–M4) chạy tốt nhất; Intel dùng được (Local chậm hơn).
+
+1. Vào **[Releases](https://github.com/ttkien2035/my-translator/releases/latest)** và tải đúng file:
+
+   | Máy của bạn | File |
+   |---|---|
+   | Mac chip Apple (M1/M2/M3/M4) | `MyTranslator_<phiên bản>_aarch64.dmg` |
+   | Mac Intel | `MyTranslator_<phiên bản>_x64.dmg` |
+   | Windows 10/11 | `MyTranslator_<phiên bản>_x64-setup.exe` |
+
+   Xem chip:  → **Giới thiệu về máy Mac này** → dòng *Chip*.
+
+2. Mở file `.dmg`, kéo **My Translator** vào **Applications**, rồi eject.
+
+3. Mở app lần đầu:
+   - Nếu bản phát hành **đã ký và notarize**, app mở bình thường.
+   - Nếu macOS báo *"không thể mở vì không xác minh được nhà phát triển"* (bản build chưa ký): vào **Cài đặt hệ thống › Quyền riêng tư & Bảo mật**, kéo xuống dưới, bấm **Vẫn mở** cạnh tên app; hoặc chuột phải vào app → **Mở** → **Mở**. Chỉ cần làm một lần. (Cách khác cho người quen Terminal: `xattr -d com.apple.quarantine /Applications/MyTranslator.app`.)
+
+4. Cấp quyền khi được hỏi: **Micro** (bắt buộc để nghe giảng) và **Screen & System Audio Recording** (chỉ cần nếu dịch âm thanh từ máy — Zoom, video). Sau khi bật quyền, macOS có thể yêu cầu mở lại app.
+
+Không cần cài Python, Homebrew hay bất cứ thứ gì khác.
+
+---
+
+## Thiết lập lần đầu
+
+1. **Cài đặt › Engine dịch**: dán API key **Soniox** (tạo tại [console.soniox.com](https://console.soniox.com); nạp $10 dùng được ~80 giờ). Chọn ngôn ngữ nguồn **Chinese** → đích **Vietnamese** (đã là mặc định).
+2. **Hồ sơ môn học** (cùng màn hình): bấm **+** tạo hồ sơ cho môn (ví dụ *Tài chính doanh nghiệp*), bấm **📚 Nạp từ điển tài chính Trung–Việt**, thêm thuật ngữ riêng của giảng viên nếu có, **Lưu**.
+3. **Cài đặt › Micro**: bấm **Tải model** (1,2 MB) để bật khử ồn; trên MacBook thử thêm **Apple Voice Processing**. Gợi ý: bật khử ồn; bật VAD khi lớp có nhiều khoảng lặng; nếu nhận dạng *kém đi* thì tắt khử ồn (STT vốn chịu ồn tốt).
+4. (Tuỳ chọn) **Cài đặt › Model › Local › Tải model** (2,3 GB, tải một lần) để dịch offline khi không có mạng/VPN.
+5. Trên thanh Live chọn nguồn **🎤 Mic**, chọn hồ sơ môn, bấm **▶ Bắt đầu**.
+
+---
+
+## Dùng trên lớp — quy trình gợi ý
+
+- Ngồi gần giảng viên hoặc dùng micro rời/kẹp áo; micro MacBook cách 5–10 m sẽ giảm độ chính xác rõ rệt.
+- Bật ghi chú `⌘⇧N`. Nghe đến ý quan trọng: `⌘⇧1`; chưa hiểu: `⌘⇧2`; giảng viên báo sẽ thi: `⌘⇧3` (hoặc để app tự bắt). Muốn giữ nguyên câu: `⌘⇧C`.
+- Đổi môn ngay trên thanh Live bằng ô hồ sơ (hiện khi có ≥ 2 hồ sơ).
+- Hết buổi bấm **Dừng**; buổi học nằm trong **Thư viện** với bản dịch, câu gốc, các câu đã đánh dấu và ghi chú của bạn — xuất Markdown để đưa vào Notion/Apple Notes.
+- Nên xin phép giảng viên trước khi ghi âm.
+
+---
+
+## Phím tắt
+
+| Phím | Tác dụng |
 |---|---|
-| **Mac Apple Silicon** (M1/M2/M3/M4) | `MyTranslator_<ver>_aarch64.dmg` |
-| **Mac Intel** (pre-2020) | `MyTranslator_<ver>_x64.dmg` |
-| **Windows** | `MyTranslator_<ver>_x64-setup.exe` |
+| `⌘↩` | Bắt đầu / Dừng |
+| `⌘1` / `⌘2` / `⌘3` | Nguồn: âm thanh hệ thống / micro / cả hai |
+| `⌘⇧N` | Mở/đóng khung ghi chú |
+| `⌘⇧C` | Chép câu vừa dịch vào ghi chú (kèm giờ) |
+| `⌘⇧1` / `⌘⇧2` / `⌘⇧3` | Đánh dấu câu vừa dịch ⭐ / ❓ / 📝 |
+| `⌘T` | Bật/tắt đọc bản dịch (TTS) |
+| `⌘,` | Cài đặt |
+| `⌘P` · `⌘D` · `⌘M` | Ghim cửa sổ · Compact · Thu nhỏ |
+| `?` | Bảng phím tắt |
 
-> On a Mac, check  → **About This Mac** → *Chip*: **Apple M-series** → `aarch64`, **Intel** → `x64`. Macs from late 2020 on are almost all Apple Silicon.
-> The `.app.tar.gz`, `.sig`, and `latest.json` files are for the built-in auto-updater — you don't download those.
-
----
-
-## How It Works
-
-```
-                                    ┌── ☁️  Soniox  (text)              ──┐
-System Audio / Mic → 16kHz PCM ─────┼── ⚡ OpenAI Realtime (text+🔊)      ─┼─→ Overlay UI
-                                    ├── 🌏 Qwen LiveTranslate Flash (text only) │
-                                    └── 🖥️  Local (SenseVoice + Qwen, offline) ─┘
-                                                                            ↓ (optional, text engines)
-                                                  TTS (Edge / Google / ElevenLabs) → 🔊
-```
-
-Four translation engines, pick what fits your call:
-
-| Feature | Detail |
-|---------|--------|
-| **Engines** | ☁️ Soniox · ⚡ OpenAI Realtime · 🌏 Qwen LiveTranslate Flash · 🖥️ Local (SenseVoice ASR + Qwen2.5 via llama.cpp, in-process Rust) |
-| **Latency** | ~2 s (Soniox / OpenAI) · ~4 s (Qwen) · ~2–3 s after the sentence ends (Local) |
-| **Languages** | 70+ source → any target (Soniox), 13 targets (OpenAI), 60+ source+target (Qwen), ZH/EN/JA/KO/YUE → any target the LLM knows (Local) |
-| **Cost** | ~$0.12/hr (Soniox) · ~$4/hr (OpenAI, includes voice) · Free preview (Qwen, text-only) · Free (Local) |
-| **TTS** | 3 providers for Soniox / Local (Edge free, Google, ElevenLabs) — OpenAI streams its own voice (off by default), Qwen text-only |
-| **Platform** | macOS (ARM + Intel) · Windows · Local runs everywhere (Apple Silicon uses Metal; models download on demand, ~2.3 GB) |
-| **Signed** | ✅ macOS signed & notarized |
-| **Auto-Update** | ✅ Built-in, check & install from Settings |
-
-> 📊 Detailed head-to-head: [**OpenAI Realtime vs Soniox benchmark**](docs/benchmark_openai_vs_soniox.md) — speed, quality, cost, and translation-mechanism comparison from a 5-min real-world test.
+(Trên Windows dùng `Ctrl` thay `⌘`.)
 
 ---
 
-## Features
+## Build từ mã nguồn
 
-### 📖 Dual Panel View
+### Yêu cầu
 
-Two display modes:
-- **Single** (default) — Translation text only, clean and focused
-- **Dual** — Source | Translation side-by-side, each panel scrolls independently
+| | macOS | Windows | Linux (chỉ để phát triển/kiểm thử) |
+|---|---|---|---|
+| Toolchain | Xcode Command Line Tools (`xcode-select --install`) | Visual Studio Build Tools (C++), WebView2 | `build-essential clang cmake pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev libasound2-dev libssl-dev` |
+| Rust | [rustup](https://rustup.rs) — stable | rustup stable | rustup stable |
+| Node.js | 20+ | 20+ | 20+ |
+| CMake | `brew install cmake` | cmake.org | apt |
 
-Toggle with the panel button (bottom-right on hover).
+CMake và clang cần cho llama.cpp (engine Local) — biên dịch **một lần** ở lần build đầu (5–10 phút), sau đó có cache.
 
-### 🔄 Smart Scroll
-
-Auto-scroll only when you're at the bottom. Scroll up to read old content without being yanked back down.
-
-### 🔤 Quick Font Size
-
-A- / A+ floating controls (bottom-right on hover). Font size adjustable up to 140px — great for presentations.
-
-### 🔄 Two-Way Translation
-
-Translate conversations between two languages simultaneously — ideal for bilingual meetings.
-
-- **One-way**: Source language → Target language (e.g., Japanese → Vietnamese)
-- **Two-way**: Language A ↔ Language B (e.g., Vietnamese ↔ Japanese) — the app detects who is speaking and translates to the other language automatically
-
-**Setup for video calls** (Zoom, Google Meet, MS Teams):
-1. Audio Source: **Both** (System + Mic)
-2. Translation Type: **Two-way**
-3. Set Language A and Language B
-
-> **Note**: TTS narration is automatically disabled in two-way mode to prevent audio feedback loops (TTS output → mic recapture → re-translation).
-
-### 🎙️ TTS Narration
-
-Read translations aloud in one-way mode — 3 providers:
-
-| | Edge TTS ⭐ | Google Chirp 3 HD | ElevenLabs |
-|-|-------------|-------------------|------------|
-| **Cost** | Free | Free 1M chars/mo | ~$5/mo+ |
-| **Quality** | ★★★★☆ Neural | ★★★★★ Near-human | ★★★★★ Premium |
-| **Vietnamese** | ✅ 2 voices | ✅ 6 voices | ✅ Yes |
-| **Setup** | None | Google Cloud API key | API key |
-| **Speed control** | ✅ | ✅ 0.5x–2.0x | ❌ |
-
-TTS is **OFF by default** — toggle with the TTS button or `⌘ T`.
-
-> 📖 TTS guide: [English](docs/tts_guide.md) · [Tiếng Việt](docs/tts_guide_vi.md)
-
-### 📖 Custom Translation Terms
-
-Define how domain-specific words should be translated:
-
-```
-Original sin = Tội nguyên tổ
-Christ = Kitô
-Pneumonia = Viêm phổi
-```
-
-Add terms in Settings → Translation → Translation terms. Great for religious, medical, or technical content.
-
-### ⚡ OpenAI Realtime Mode
-
-Single-call streaming translation via OpenAI's `gpt-realtime-translate` (May 2026 GA). Returns **translated text *and* translated speech audio** over one WebSocket — no separate TTS step, lower end-to-end latency, more idiomatic output. Trade-off: **~$4/hr**, charged to your own OpenAI account. 13 target languages: en, es, pt, fr, de, it, ru, hi, id, vi, ja, ko, zh.
-
-Two-way mode and the custom TTS toggle are unavailable while OpenAI Realtime is selected (audio is native).
-
-### 🌏 Qwen LiveTranslate Flash Mode
-
-Alibaba DashScope `qwen3-livetranslate-flash-realtime` — streams **translated text** (no native voice) on Qwen's **free preview tier**, with a **60-language picker** matching the mobile app. Server-side VAD handles turn detection, so it works with mic / system audio / both. Translation-only display (no source-transcript panel; the model doesn't expose ASR). Get a key from [Alibaba Cloud Bailian](https://bailian.console.alibabacloud.com) (Singapore region only — other regions hit a different endpoint and fail).
-
-Source language must be picked explicitly (auto-detect is disabled on this engine — Live Flash stalls on real mic input when source is "auto"). Two-way mode and the custom TTS toggle are also disabled while Qwen is selected.
-
-### 🖥️ Local Mode (offline, pure Rust)
-
-Runs 100% on-device with no Python: **SenseVoice-small** (sherpa-onnx) recognises ZH/EN/JA/KO/YUE, **Qwen2.5-3B-Instruct** (llama.cpp, Metal on Apple Silicon) translates — with the active course glossary injected into the prompt. Sentences are cut by Silero VAD, so a translation appears ~2–3 s after the speaker pauses. Models (~2.3 GB) download only when you press *Tải model* in Settings › Model › Local.
-
----
-
-## Privacy
-
-**Your audio never touches our servers — because there are none.**
-
-- App connects **directly** to APIs you configure — no relay, no middleman
-- **You own your API keys** — stored locally, never transmitted elsewhere
-- **No account, no telemetry, no analytics** — zero tracking
-- Transcripts saved as `.md` files locally, per session
-
----
-
-## Tech Stack
-
-- **[Tauri 2](https://tauri.app/)** — Rust backend + WebView frontend
-- **[ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit)** — macOS system audio
-- **[WASAPI](https://learn.microsoft.com/en-us/windows/win32/coreaudio/wasapi)** — Windows system audio
-- **[cpal](https://github.com/RustAudio/cpal)** — Cross-platform microphone
-- **[Soniox](https://soniox.com)** — Real-time STT + translation
-- **[OpenAI Realtime Translate](https://platform.openai.com/docs/guides/realtime)** — `gpt-realtime-translate` (text + native voice)
-- **[llama.cpp](https://github.com/ggml-org/llama.cpp) via [llama-cpp-2](https://crates.io/crates/llama-cpp-2)** — Qwen2.5-3B-Instruct (GGUF) translation for offline mode
-- **[SenseVoice](https://github.com/FunAudioLLM/SenseVoice) via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** — on-device Chinese/English/Japanese/Korean speech recognition
-- **[Piper](https://github.com/rhasspy/piper) via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** — Local offline neural TTS (on-device, no network)
-- **[Edge TTS](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/index-text-to-speech)** — Free neural TTS (default)
-- **[Google Cloud TTS](https://cloud.google.com/text-to-speech)** — Chirp 3 HD (near-human quality)
-- **[ElevenLabs](https://elevenlabs.io)** — Premium TTS
-
----
-
-## Build from Source
+### Chạy bản phát triển
 
 ```bash
-git clone https://github.com/phuc-nt/my-translator.git
+git clone https://github.com/ttkien2035/my-translator.git
 cd my-translator
 npm install
-npm run tauri build
+cp .env.example .env          # tuỳ chọn; để trống cũng được
+npm run dev                   # mở app kèm DevTools; hot-reload giao diện
 ```
 
-Requires: Rust (stable), Node.js 18+, macOS 13+ or Windows 10+.
+`npm run dev` có thể dùng `APP_IDENTIFIER=com.personal.translator.dev` trong `.env` để bản dev có quyền Micro/Screen Recording riêng, không đụng bản cài chính thức.
+
+### Kiểm tra & kiểm thử
+
+```bash
+cd src-tauri
+cargo check && cargo clippy --all-targets      # phải sạch cảnh báo
+cargo test                                     # test không cần model
+# Kiểm thử engine Local với model thật (tải SenseVoice int8 + GGUF Qwen về một thư mục tạm):
+MT_TEST_SENSEVOICE_DIR=/path/sensevoice MT_TEST_GGUF=/path/qwen2.5-3b-instruct-q4_k_m.gguf \
+  cargo test --lib local:: -- --include-ignored --nocapture
+```
+
+### Build bản phát hành (chưa ký)
+
+```bash
+npm run build
+# macOS:   src-tauri/target/release/bundle/dmg/MyTranslator_<ver>_aarch64.dmg
+# Windows: src-tauri/target/release/bundle/nsis/MyTranslator_<ver>_x64-setup.exe
+```
+
+Build cho Mac Intel từ máy Apple Silicon:
+
+```bash
+rustup target add x86_64-apple-darwin
+npm run tauri build -- --target x86_64-apple-darwin
+# → src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/
+```
 
 ---
 
-## Star History
+## Đóng gói & phát hành cho người dùng phổ thông
 
-<a href="https://www.star-history.com/?repos=phuc-nt%2Fmy-translator&type=date&legend=top-left">
- <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=phuc-nt/my-translator&type=date&theme=dark&legend=top-left" />
-  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=phuc-nt/my-translator&type=date&legend=top-left" />
-  <img alt="Star History Chart" src="https://api.star-history.com/image?repos=phuc-nt/my-translator&type=date&legend=top-left" />
- </picture>
-</a>
+Có ba mức, từ đơn giản đến "mở là chạy":
+
+### Mức 1 — DMG chưa ký (miễn phí)
+
+`npm run build` → gửi file `.dmg`. Người nhận phải làm bước **Vẫn mở** một lần (xem *Cài đặt cho người dùng*). Phù hợp cho bạn bè, lớp học.
+
+### Mức 2 — Ký & notarize (Apple Developer Program, $99/năm)
+
+Người nhận mở app không gặp cảnh báo nào.
+
+1. Tạo chứng chỉ **Developer ID Application** trong Xcode (Settings › Accounts › Manage Certificates) hoặc tại developer.apple.com, cài vào Keychain.
+2. Tạo **app-specific password** tại [appleid.apple.com](https://appleid.apple.com) (Sign-In and Security › App-Specific Passwords).
+3. Điền vào `.env` (đã gitignore):
+   ```
+   APPLE_ID=you@example.com
+   APPLE_TEAM_ID=XXXXXXXXXX
+   APPLE_PASSWORD=xxxx-xxxx-xxxx-xxxx
+   APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (XXXXXXXXXX)"
+   ```
+4. Chạy `./scripts/build-notarized.sh` — Tauri sẽ ký, gửi notarize và staple. DMG kết quả nằm ở `src-tauri/target/release/bundle/dmg/`.
+
+### Mức 3 — Phát hành tự động trên GitHub + tự cập nhật
+
+Workflow `.github/workflows/release.yml` build cả ba bản (macOS Apple Silicon, macOS Intel, Windows), ký/notarize macOS, tạo `latest.json` cho **auto-update** và mở một *draft release* mỗi khi bạn đẩy tag:
+
+```bash
+# 1. Cập nhật version ở 3 chỗ: package.json, src-tauri/Cargo.toml, src-tauri/tauri.conf.json
+# 2. Thêm mục "## vX.Y.Z - YYYY-MM-DD" vào docs/project-changelog.md (workflow dùng làm release notes)
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+
+Secrets cần khai báo trong repo (*Settings › Secrets and variables › Actions*):
+
+| Secret | Nội dung |
+|---|---|
+| `APPLE_CERTIFICATE` | file `.p12` của chứng chỉ Developer ID, mã hoá base64 |
+| `APPLE_CERTIFICATE_PASSWORD` | mật khẩu file `.p12` |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Your Name (TEAMID)` |
+| `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` | như mức 2 |
+| `TAURI_SIGNING_PRIVATE_KEY` | khoá ký updater (xem dưới) |
+
+**Khoá updater (bắt buộc cho tự cập nhật):** bản fork này *không* dùng khoá của repo gốc. Tạo cặp khoá mới:
+
+```bash
+npm run tauri signer generate -- -w ~/.tauri/my-translator.key
+```
+
+Dán **khoá công khai** in ra vào `plugins.updater.pubkey` trong `src-tauri/tauri.conf.json`, và nội dung **khoá riêng** vào secret `TAURI_SIGNING_PRIVATE_KEY`. Endpoint updater đã trỏ về `github.com/ttkien2035/my-translator`. Chừng nào chưa thay `pubkey`, app không tự cập nhật (an toàn — không bao giờ bị bản khác đè lên).
 
 ---
 
-## License
+## Dữ liệu nằm ở đâu
 
-MIT
+| Nội dung | macOS | Windows |
+|---|---|---|
+| Cài đặt (API key, hồ sơ môn, từ điển) | `~/Library/Application Support/com.personal.translator/settings.json` (+ `.bak`) | `%APPDATA%\com.personal.translator\settings.json` |
+| Buổi học (Markdown + JSON) | `~/Library/Application Support/com.personal.translator/transcripts/` | `%APPDATA%\com.personal.translator\transcripts\` |
+| Model khử ồn/VAD, model Local, giọng Piper | `~/Library/Application Support/My Translator/{audio-models,local-models,…}` | `%APPDATA%\My Translator\…` |
+
+Tất cả ở trên máy bạn. Chỉ engine cloud bạn chọn nhận âm thanh; không có máy chủ trung gian.
+
+---
+
+## Xử lý sự cố
+
+| Hiện tượng | Cách xử lý |
+|---|---|
+| Không nghe được gì / trạng thái không đổi | Kiểm tra quyền **Micro** trong Cài đặt hệ thống; chọn đúng nguồn 🎤 trên thanh Live |
+| Soniox báo lỗi 401/402 | Sai key hoặc hết tiền — kiểm tra tại console.soniox.com |
+| Qwen báo `WebSocket error` ngay khi Start | Key DashScope phải tạo ở region **Singapore** (endpoint quốc tế) |
+| Toast "⏩ Mạng chậm" liên tục | Wi-Fi yếu: chuyển sang Qwen (không cần VPN) hoặc Local (offline) |
+| Local: "cần tải model" | Cài đặt › Model › Local › **Tải model**; cần ~2,3 GB trống |
+| Local dịch sót vài chữ Hán | Giới hạn của model 3B; trỏ **GGUF tuỳ chỉnh** tới bản 7B nếu máy đủ RAM (≥16 GB) |
+| Khử ồn làm nhận dạng kém hơn | Tắt "Khử tiếng ồn nền" (hoặc thử Apple Voice Processing thay thế) |
+| Build lần đầu rất lâu | llama.cpp đang được biên dịch; chỉ lần đầu. Cần `cmake` + `clang` |
+| macOS không cho mở app | Bản chưa ký — xem bước 3 mục *Cài đặt cho người dùng* |
+
+Bạn có thể mở DevTools trong bản dev (`npm run dev`) để xem log `[Soniox]`, `[Mic]`, `[Local]`.
+
+---
+
+## Kiến trúc & công nghệ
+
+```
+                 ┌ Soniox (WebSocket từ giao diện; từ điển + ngữ cảnh hồ sơ môn)
+Micro / hệ thống ─► Rust capture ─► DSP thread (resample · HPF · GTCRN · AGC · VAD) ─► IPC nhị phân ─┼ Qwen LiveTranslate (Rust WS)
+                                                                                                    ├ OpenAI Realtime (Rust WS)
+                                                                                                    └ Local: Silero VAD → SenseVoice → Qwen2.5 (llama.cpp)
+                                                                                                                          │
+                                                             Overlay · Ghi chú · Thư viện (Markdown + JSON)  ◄────────────┘
+```
+
+- **Tauri 2** (Rust backend, giao diện HTML/JS không framework, không bundler)
+- **cpal** / **ScreenCaptureKit** / **WASAPI** thu âm; **coreaudio-rs** cho Apple Voice Processing; **rubato** resample
+- **sherpa-onnx**: Silero VAD, GTCRN khử ồn, SenseVoice nhận dạng, Piper TTS
+- **llama-cpp-2** (llama.cpp): Qwen2.5-3B-Instruct GGUF, Metal trên Apple Silicon
+- **reqwest / tokio-tungstenite** cho các engine cloud
+
+Mã Rust được kiểm bằng `cargo clippy --all-targets` (0 cảnh báo) và test chạy model thật trên Linux/CI; các phần chỉ có trên macOS (ScreenCaptureKit, Voice Processing, Metal) kiểm trên MacBook.
+
+---
+
+## Ghi công & giấy phép
+
+Dựa trên [My Translator](https://github.com/phuc-nt/my-translator) của Nguyễn Trọng Phúc — MIT License. Phần tuỳ biến trong fork này cũng theo MIT. Model: [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) (FunAudioLLM), [Qwen2.5](https://huggingface.co/Qwen) (Alibaba), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — theo giấy phép riêng của từng model.

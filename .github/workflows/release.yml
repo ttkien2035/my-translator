@@ -223,7 +223,7 @@ jobs:
           DARWIN_X86_64_SIG=$(cat artifacts/macos-intel/macos/*_x64.app.tar.gz.sig 2>/dev/null || echo "")
           WINDOWS_X86_64_SIG=$(cat artifacts/windows/nsis/*.exe.sig 2>/dev/null || echo "")
 
-          REPO="https://github.com/phuc-nt/my-translator/releases/download/v${VERSION}"
+          REPO="https://github.com/ttkien2035/my-translator/releases/download/v${VERSION}"
 
           # Find actual filenames
           DARWIN_AARCH64_FILE=$(ls artifacts/macos/macos/*_aarch64.app.tar.gz 2>/dev/null | head -1 | xargs basename || echo "")
@@ -233,7 +233,7 @@ jobs:
           cat > artifacts/latest.json << EOF
           {
             "version": "${VERSION}",
-            "notes": "See release notes at https://github.com/phuc-nt/my-translator/releases/tag/v${VERSION}",
+            "notes": "See release notes at https://github.com/ttkien2035/my-translator/releases/tag/v${VERSION}",
             "pub_date": "${DATE}",
             "platforms": {
               "darwin-aarch64": {
@@ -273,12 +273,12 @@ jobs:
           if [ ! -s "$OUT" ]; then
             echo "Release v${VERSION}" > "$OUT"
             echo "" >> "$OUT"
-            echo "See commits: https://github.com/phuc-nt/my-translator/compare/...v${VERSION}" >> "$OUT"
+            echo "See commits: https://github.com/ttkien2035/my-translator/compare/...v${VERSION}" >> "$OUT"
           fi
 
           # Append auto-generated full changelog link
           echo "" >> "$OUT"
-          echo "**Full Changelog**: https://github.com/phuc-nt/my-translator/compare/...v${VERSION}" >> "$OUT"
+          echo "**Full Changelog**: https://github.com/ttkien2035/my-translator/compare/...v${VERSION}" >> "$OUT"
 
           echo "--- Release notes preview ---"
           cat "$OUT"

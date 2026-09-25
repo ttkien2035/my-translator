@@ -30,12 +30,27 @@ use tauri::State;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-const QWEN_REALTIME_URL: &str =
-    "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime?model=qwen3-livetranslate-flash-realtime";
+const QWEN_REALTIME_BASE: &str = "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime";
+const QWEN_DEFAULT_MODEL: &str = "qwen3-livetranslate-flash-realtime";
+
+/// WS URL for `model`; falls back to the default when empty. Model ids are
+/// restricted to URL-safe chars so a settings value can't inject query params.
+fn realtime_url(model: &str) -> String {
+    let cleaned: String = model
+        .trim()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':'))
+        .collect();
+    let m = if cleaned.is_empty() { QWEN_DEFAULT_MODEL } else { cleaned.as_str() };
+    format!("{}?model={}", QWEN_REALTIME_BASE, m)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct QwenRealtimeConfig {
     pub api_key: String,
+    /// Realtime model id (Settings → Model). Empty → default.
+    #[serde(default)]
+    pub model: String,
     /// BCP-47-ish code (e.g. "en", "ja"). "auto" or empty → fallback "en".
     pub source_language: String,
     /// BCP-47-ish code (e.g. "vi"). Sent as `translation.language`.
@@ -155,7 +170,7 @@ async fn run_session(
     event_ch: Channel<QwenEvent>,
 ) -> Result<(), String> {
     let request = Request::builder()
-        .uri(QWEN_REALTIME_URL)
+        .uri(realtime_url(&cfg.model))
         .header("Authorization", format!("Bearer {}", cfg.api_key))
         .header("Host", "dashscope-intl.aliyuncs.com")
         .header("Connection", "Upgrade")

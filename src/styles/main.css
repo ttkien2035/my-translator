@@ -2569,3 +2569,61 @@ body.expanded #library-panel { padding: 8px 6%; }
 .read-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .read-progress { font-size: 12px; color: rgba(255, 255, 255, 0.6); margin-left: auto; }
 .read-hint { font-size: 12px; color: #ff9a9a; min-height: 14px; }
+
+/* ─── Settings → Model tab ────────────────────────────────────────────── */
+.model-engine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.model-engine-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.model-engine-row.active {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(96, 165, 250, 0.08);
+}
+.model-engine-pick {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.model-engine-pick:hover { background: rgba(255, 255, 255, 0.06); }
+.model-engine-row.active .model-engine-pick {
+  background: rgba(96, 165, 250, 0.25);
+  border-color: transparent;
+}
+.model-engine-key {
+  font-size: 11px;
+  color: var(--text-muted);
+  justify-self: end;
+}
+.model-engine-key.ok { color: #4ade80; }
+.model-engine-row select,
+.model-engine-row .model-engine-custom { grid-column: 1 / -1; }
+.model-engine-custom { margin-top: 4px; }
+
+/* Engine pill readiness dot (key present / Apple Silicon) — active button only */
+.engine-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f87171;
+  display: inline-block;
+}
+.engine-pill-dot.ok { background: #4ade80; }
+.engine-pill-btn:not(.active) .engine-pill-dot { display: none; }

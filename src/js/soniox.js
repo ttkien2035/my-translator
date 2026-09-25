@@ -24,6 +24,9 @@ const SESSION_DURATION_MS = 3 * 60 * 1000;
 
 // Keep last N chars of translations for context carryover
 const CONTEXT_HISTORY_CHARS = 500;
+// After a seamless reset, keep the old socket open this long at most while it
+// delivers the finals for audio already sent.
+const OLD_WS_DRAIN_TIMEOUT_MS = 5000;
 
 // Keepalive: send every 15s to prevent timeout when no audio
 const KEEPALIVE_INTERVAL_MS = 15000;
@@ -39,6 +42,7 @@ export class SonioxClient {
         this._sessionTimer = null;
         this._keepaliveTimer = null;
         this._recentTranslations = []; // Rolling buffer of recent translations
+        this._drainingWs = null; // Old socket still delivering finals after a reset
 
         // Callbacks
         this.onOriginal = null;       // (text, speaker, language) => {}
@@ -72,7 +76,7 @@ export class SonioxClient {
     _doConnect(config, carryoverContext = null) {
         const { apiKey, sourceLanguage, targetLanguage, customContext,
                 translationType, languageA, languageB, languageHintsStrict,
-                endpointDelay } = config;
+                endpointDelay, model } = config;
 
         this._setStatus('connecting');
         console.log('[Soniox] Connecting to', SONIOX_ENDPOINT);
@@ -94,7 +98,7 @@ export class SonioxClient {
             // Build config message
             const configMsg = {
                 api_key: apiKey,
-                model: 'stt-rt-v5',
+                model: model || 'stt-rt-v5',
                 audio_format: 'pcm_s16le',
                 sample_rate: 16000,
                 num_channels: 1,
@@ -142,16 +146,24 @@ export class SonioxClient {
             // Make-before-break: close old WS AFTER new one is ready
             const oldWs = this.ws;
             if (oldWs && oldWs !== newWs) {
-                console.log('[Soniox] Seamless switch: closing old WebSocket');
+                console.log('[Soniox] Seamless switch: draining old WebSocket');
+                // Make-before-break: signal end-of-audio to the old socket but
+                // keep listening, so the finals for audio already sent are not
+                // lost (closing immediately dropped the tail of the last
+                // utterance at every 3-min reset). Closed on `finished` or
+                // after a safety timeout.
+                oldWs._isOld = true; // onclose must not trigger reconnect
                 try {
                     if (oldWs.readyState === WebSocket.OPEN) {
-                        oldWs.send(new ArrayBuffer(0)); // graceful close signal
+                        oldWs.send(new ArrayBuffer(0)); // end-of-audio signal
+                    } else {
+                        oldWs.close(1000, 'Session reset');
                     }
-                    oldWs._isOld = true; // mark so onclose doesn't trigger reconnect
-                    oldWs.close(1000, 'Session reset');
                 } catch (e) {
                     // ignore
                 }
+                this._drainingWs = oldWs;
+                oldWs._drainTimer = setTimeout(() => this._closeOldWs(oldWs), OLD_WS_DRAIN_TIMEOUT_MS);
             }
 
             // Switch to new WS
@@ -167,11 +179,19 @@ export class SonioxClient {
         };
 
         newWs.onmessage = (event) => {
-            // Ignore messages from old WebSocket
-            if (newWs._isOld) return;
-
             try {
                 const data = JSON.parse(event.data);
+
+                if (newWs._isOld) {
+                    // Old socket draining after a seamless reset: accept only
+                    // finalized tokens — the new socket owns provisional text.
+                    if (Array.isArray(data.tokens)) {
+                        const finals = data.tokens.filter((t) => t.is_final);
+                        if (finals.length > 0) this._handleResponse({ ...data, tokens: finals });
+                    }
+                    if (data.finished || data.error_code) this._closeOldWs(newWs);
+                    return;
+                }
 
                 if (data.error_code) {
                     this._handleApiError(data);
@@ -193,7 +213,8 @@ export class SonioxClient {
         newWs.onclose = (event) => {
             // Ignore close events from old WebSocket during seamless switch
             if (newWs._isOld) {
-                console.log('[Soniox] Old WebSocket closed (expected)');
+                console.log('[Soniox] Old WebSocket closed (drained)');
+                this._closeOldWs(newWs); // clears the drain timer
                 return;
             }
 
@@ -246,6 +267,7 @@ export class SonioxClient {
         this._intentionalDisconnect = true;
         this._stopSessionTimer();
         this._stopKeepalive();
+        this._closeOldWs(this._drainingWs);
 
         if (this.ws) {
             try {
@@ -260,6 +282,23 @@ export class SonioxClient {
         }
         this.isConnected = false;
         this._setStatus('disconnected');
+    }
+
+    /** Close a socket left draining after a seamless reset (idempotent). */
+    _closeOldWs(ws) {
+        if (!ws) return;
+        if (ws._drainTimer) {
+            clearTimeout(ws._drainTimer);
+            ws._drainTimer = null;
+        }
+        if (this._drainingWs === ws) this._drainingWs = null;
+        try {
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+                ws.close(1000, 'Session reset');
+            }
+        } catch (e) {
+            // ignore
+        }
     }
 
     /**

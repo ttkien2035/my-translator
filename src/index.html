@@ -67,17 +67,27 @@
       <!-- Live status row: engine · state · languages · audio source -->
       <div class="live-status-row">
         <div class="engine-pill" id="engine-pill" title="Click to switch engine">
-          <button class="engine-pill-btn active" data-engine-class="standard" type="button">
+          <!-- One button per engine; the dot shows readiness (key / Apple Silicon).
+               Model + key config live in Settings → Model / Engine dịch. -->
+          <button class="engine-pill-btn active" data-engine-class="soniox" type="button" title="Soniox">
             <span class="engine-pill-icon">☁️</span>
-            <span class="engine-pill-label">Standard</span>
+            <span class="engine-pill-label">Soniox</span>
+            <span class="engine-pill-dot"></span>
           </button>
-          <button class="engine-pill-btn" data-engine-class="openai" type="button">
-            <span class="engine-pill-icon">⚡</span>
-            <span class="engine-pill-label">OpenAI</span>
-          </button>
-          <button class="engine-pill-btn" data-engine-class="qwen" type="button">
+          <button class="engine-pill-btn" data-engine-class="qwen" type="button" title="Qwen LiveTranslate">
             <span class="engine-pill-icon">🌏</span>
             <span class="engine-pill-label">Qwen</span>
+            <span class="engine-pill-dot"></span>
+          </button>
+          <button class="engine-pill-btn" data-engine-class="openai" type="button" title="OpenAI Realtime">
+            <span class="engine-pill-icon">⚡</span>
+            <span class="engine-pill-label">OpenAI</span>
+            <span class="engine-pill-dot"></span>
+          </button>
+          <button class="engine-pill-btn" data-engine-class="local" type="button" title="Local MLX (offline)">
+            <span class="engine-pill-icon">🖥️</span>
+            <span class="engine-pill-label">Local</span>
+            <span class="engine-pill-dot"></span>
           </button>
         </div>
         <div class="status-area">
@@ -310,6 +320,14 @@
           <span class="settings-card-text">
             <span class="settings-card-title">Engine dịch</span>
             <span class="settings-card-sub" id="card-translation-sub">—</span>
+          </span>
+          <span class="settings-card-chevron">›</span>
+        </button>
+        <button class="settings-card" data-screen="tab-model" id="card-model">
+          <span class="settings-card-icon">🧠</span>
+          <span class="settings-card-text">
+            <span class="settings-card-title">Model</span>
+            <span class="settings-card-sub" id="card-model-sub">—</span>
           </span>
           <span class="settings-card-chevron">›</span>
         </button>
@@ -661,6 +679,85 @@
       </div>
 
       <!-- Tab: Display -->
+      <!-- Detail: Model — which engine + model runs real-time translation, and
+           the helper LLM (OpenAI-compatible) for re-translation / summaries. -->
+      <div class="settings-tab-content" id="tab-model">
+        <button class="settings-back-row" data-screen="settings-home">‹ Cài đặt</button>
+
+        <div class="settings-section">
+          <span class="field-label">Engine dịch real-time</span>
+          <p class="hint">Bấm tên engine để dùng. API key nhập ở <a href="#" id="link-model-to-keys">Engine dịch ›</a></p>
+          <div class="model-engine-list" id="model-engine-list">
+            <div class="model-engine-row" data-engine="soniox">
+              <button type="button" class="model-engine-pick" data-engine="soniox">☁️ Soniox</button>
+              <span class="model-engine-key" id="model-key-soniox">○ chưa có key</span>
+              <select id="select-soniox-model" data-custom="input-soniox-model-custom">
+                <option value="stt-rt-v5">stt-rt-v5 (mặc định)</option>
+                <option value="__custom">Tuỳ chỉnh…</option>
+              </select>
+              <input type="text" id="input-soniox-model-custom" class="model-engine-custom" placeholder="tên model Soniox" autocomplete="off" style="display:none" />
+            </div>
+            <div class="model-engine-row" data-engine="qwen">
+              <button type="button" class="model-engine-pick" data-engine="qwen">🌏 Qwen LiveTranslate</button>
+              <span class="model-engine-key" id="model-key-qwen">○ chưa có key</span>
+              <select id="select-qwen-model" data-custom="input-qwen-model-custom">
+                <option value="qwen3-livetranslate-flash-realtime">qwen3-livetranslate-flash-realtime (mặc định)</option>
+                <option value="__custom">Tuỳ chỉnh…</option>
+              </select>
+              <input type="text" id="input-qwen-model-custom" class="model-engine-custom" placeholder="tên model DashScope realtime" autocomplete="off" style="display:none" />
+            </div>
+            <div class="model-engine-row" data-engine="openai">
+              <button type="button" class="model-engine-pick" data-engine="openai">⚡ OpenAI Realtime</button>
+              <span class="model-engine-key" id="model-key-openai">○ chưa có key</span>
+              <select id="select-openai-model" data-custom="input-openai-model-custom">
+                <option value="gpt-realtime-translate">gpt-realtime-translate (mặc định)</option>
+                <option value="__custom">Tuỳ chỉnh…</option>
+              </select>
+              <input type="text" id="input-openai-model-custom" class="model-engine-custom" placeholder="tên model OpenAI realtime" autocomplete="off" style="display:none" />
+            </div>
+            <div class="model-engine-row" data-engine="local">
+              <button type="button" class="model-engine-pick" data-engine="local">🖥️ Local MLX</button>
+              <span class="model-engine-key" id="model-key-local">○ cần Apple Silicon</span>
+              <p class="hint" style="grid-column:1 / -1; margin:0">Offline · Whisper + Gemma trên máy · cài qua Engine dịch › Local</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section" id="section-llm">
+          <span class="field-label">LLM hỗ trợ</span>
+          <p class="hint">Dùng cho dịch lại theo văn phong học thuật và tóm tắt bài giảng. Bất kỳ API chuẩn OpenAI.</p>
+          <select id="select-llm-provider" style="margin-top:6px">
+            <option value="deepseek">DeepSeek</option>
+            <option value="dashscope">Qwen — Alibaba DashScope</option>
+            <option value="zhipu">Zhipu GLM</option>
+            <option value="openai">OpenAI</option>
+            <option value="custom">Tuỳ chỉnh (OpenAI-compatible)</option>
+          </select>
+          <p class="hint" id="hint-llm"></p>
+          <div style="margin-top:8px">
+            <span class="field-label">Base URL</span>
+            <input type="text" id="input-llm-base-url" placeholder="https://…/v1" autocomplete="off" />
+          </div>
+          <div style="margin-top:8px">
+            <span class="field-label">API Key <span id="key-status-llm" class="key-status"></span></span>
+            <div class="input-group">
+              <input type="password" id="input-llm-key" placeholder="sk-..." autocomplete="off" />
+              <button id="btn-toggle-llm-key" class="icon-btn small" title="Show/Hide" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+              <button id="btn-test-llm" class="btn-secondary small" title="Gửi một yêu cầu thử" type="button">Kiểm tra</button>
+            </div>
+          </div>
+          <div style="margin-top:8px">
+            <span class="field-label">Model</span>
+            <select id="select-llm-model" data-custom="input-llm-model-custom"></select>
+            <input type="text" id="input-llm-model-custom" class="model-engine-custom" placeholder="tên model" autocomplete="off" style="display:none" />
+          </div>
+        </div>
+      </div>
+
       <div class="settings-tab-content" id="tab-display">
         <button class="settings-back-row" data-screen="settings-home">‹ Cài đặt</button>
         <div class="settings-section">

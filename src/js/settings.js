@@ -9,9 +9,9 @@ const DEFAULT_SETTINGS = {
   soniox_api_key: '',
   openai_api_key: '',
   qwen_api_key: '',
-  source_language: 'auto',
+  source_language: 'zh',
   target_language: 'vi',
-  audio_source: 'system',
+  audio_source: 'microphone',
   overlay_opacity: 0.85,
   font_size: 16,
   max_lines: 5,
@@ -43,6 +43,14 @@ const DEFAULT_SETTINGS = {
   local_tts_voice: 'vi_VN-vais1000-medium',
   local_tts_speed: 1.0,
   local_tts_models_dir: '',
+  // Settings → Model tab (mirror settings.rs defaults)
+  soniox_model: 'stt-rt-v5',
+  openai_model: 'gpt-realtime-translate',
+  qwen_model: 'qwen3-livetranslate-flash-realtime',
+  llm_provider: 'deepseek',
+  llm_base_url: '',
+  llm_api_key: '',
+  llm_model: '',
 };
 
 class SettingsManager {

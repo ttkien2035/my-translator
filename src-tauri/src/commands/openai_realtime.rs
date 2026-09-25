@@ -18,12 +18,27 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::audio::resampler::UpsamplerTo24k;
 
-const OPENAI_REALTIME_URL: &str =
-    "wss://api.openai.com/v1/realtime/translations?model=gpt-realtime-translate";
+const OPENAI_REALTIME_BASE: &str = "wss://api.openai.com/v1/realtime/translations";
+const OPENAI_DEFAULT_MODEL: &str = "gpt-realtime-translate";
+
+/// WS URL for `model`; falls back to the default when empty. Model ids are
+/// restricted to URL-safe chars so a settings value can't inject query params.
+fn realtime_url(model: &str) -> String {
+    let cleaned: String = model
+        .trim()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':'))
+        .collect();
+    let m = if cleaned.is_empty() { OPENAI_DEFAULT_MODEL } else { cleaned.as_str() };
+    format!("{}?model={}", OPENAI_REALTIME_BASE, m)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct OpenAiRealtimeConfig {
     pub api_key: String,
+    /// Realtime model id (Settings → Model). Empty → default.
+    #[serde(default)]
+    pub model: String,
     pub source_language: String,
     pub target_language: String,
     pub voice: Option<String>,
@@ -108,6 +123,7 @@ pub async fn openai_realtime_start(
     let event_ch = on_event.clone();
     let cfg = OpenAiRealtimeConfig {
         api_key: config.api_key,
+        model: config.model,
         source_language: config.source_language,
         target_language: config.target_language,
         voice: config.voice,
@@ -176,7 +192,7 @@ async fn run_session(
 ) -> Result<(), String> {
     // Build WebSocket request with auth headers
     let request = Request::builder()
-        .uri(OPENAI_REALTIME_URL)
+        .uri(realtime_url(&cfg.model))
         .header("Authorization", format!("Bearer {}", cfg.api_key))
         .header("Host", "api.openai.com")
         .header("Connection", "Upgrade")

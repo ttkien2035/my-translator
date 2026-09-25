@@ -102,6 +102,21 @@ pub struct Settings {
     /// Default false — speaker → mic feedback loop on shared devices.
     #[serde(default)]
     pub openai_audio_output: bool,
+
+    // ── Model selection (Settings → Model tab) ──
+    /// Soniox real-time STT model, e.g. "stt-rt-v5".
+    pub soniox_model: String,
+    /// OpenAI realtime translation model (query param of the WS URL).
+    pub openai_model: String,
+    /// Qwen (DashScope) realtime translation model (query param of the WS URL).
+    pub qwen_model: String,
+    /// Helper LLM (OpenAI-compatible chat API) for academic re-translation,
+    /// summaries, etc. Preset id: "deepseek" | "dashscope" | "zhipu" | "openai" | "custom".
+    pub llm_provider: String,
+    /// Base URL of the OpenAI-compatible endpoint (without /chat/completions).
+    pub llm_base_url: String,
+    pub llm_api_key: String,
+    pub llm_model: String,
 }
 
 impl Default for Settings {
@@ -110,9 +125,10 @@ impl Default for Settings {
             soniox_api_key: String::new(),
             openai_api_key: String::new(),
             qwen_api_key: String::new(),
-            source_language: "auto".to_string(),
+            // Personal default: in-person Mandarin lectures → Vietnamese, via mic.
+            source_language: "zh".to_string(),
             target_language: "vi".to_string(),
-            audio_source: "system".to_string(),
+            audio_source: "microphone".to_string(),
             overlay_opacity: 0.85,
             font_size: 16,
             max_lines: 5,
@@ -142,6 +158,13 @@ impl Default for Settings {
             local_tts_speed: 1.0,
             local_tts_models_dir: String::new(),
             openai_audio_output: false,
+            soniox_model: "stt-rt-v5".to_string(),
+            openai_model: "gpt-realtime-translate".to_string(),
+            qwen_model: "qwen3-livetranslate-flash-realtime".to_string(),
+            llm_provider: "deepseek".to_string(),
+            llm_base_url: String::new(),
+            llm_api_key: String::new(),
+            llm_model: String::new(),
         }
     }
 }
@@ -161,20 +184,40 @@ fn settings_path() -> PathBuf {
 }
 
 impl Settings {
-    /// Load settings from disk, or return defaults
+    /// Load settings from disk, or return defaults.
+    /// A corrupt/truncated main file falls back to the `.bak` written by the
+    /// last save, so a crash mid-write never silently wipes API keys.
     pub fn load() -> Self {
         let path = settings_path();
-        if path.exists() {
-            match fs::read_to_string(&path) {
-                Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
-                Err(_) => Self::default(),
+        match Self::load_from(&path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "[settings] cannot load {}: {} — trying backup",
+                    path.display(),
+                    e
+                );
+                match Self::load_from(&backup_path(&path)) {
+                    Ok(s) => s,
+                    Err(e2) => {
+                        eprintln!("[settings] backup unusable ({}); using defaults", e2);
+                        Self::default()
+                    }
+                }
             }
-        } else {
-            Self::default()
         }
     }
 
-    /// Save settings to disk
+    fn load_from(path: &std::path::Path) -> Result<Self, String> {
+        if !path.exists() {
+            return Err("file does not exist".to_string());
+        }
+        let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        serde_json::from_str(&content).map_err(|e| e.to_string())
+    }
+
+    /// Save settings to disk atomically (tmp + fsync + rename), keeping the
+    /// previous file as `.bak`.
     pub fn save(&self) -> Result<(), String> {
         let path = settings_path();
 
@@ -187,10 +230,29 @@ impl Settings {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize: {}", e))?;
 
-        fs::write(&path, json).map_err(|e| format!("Failed to write settings: {}", e))?;
+        if path.exists() {
+            // Best effort: a failed backup must not block saving.
+            let _ = fs::copy(&path, backup_path(&path));
+        }
+
+        let tmp = path.with_extension("json.tmp");
+        {
+            use std::io::Write;
+            let mut f = fs::File::create(&tmp)
+                .map_err(|e| format!("Failed to create tmp settings: {}", e))?;
+            f.write_all(json.as_bytes())
+                .map_err(|e| format!("Failed to write settings: {}", e))?;
+            f.sync_all()
+                .map_err(|e| format!("Failed to fsync settings: {}", e))?;
+        }
+        fs::rename(&tmp, &path).map_err(|e| format!("Failed to replace settings: {}", e))?;
 
         Ok(())
     }
+}
+
+fn backup_path(path: &std::path::Path) -> std::path::PathBuf {
+    path.with_extension("json.bak")
 }
 
 /// Thread-safe settings state managed by Tauri

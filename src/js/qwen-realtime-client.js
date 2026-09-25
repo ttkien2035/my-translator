@@ -29,6 +29,7 @@ export class QwenRealtimeClient {
             this.sessionId = await invoke('qwen_realtime_start', {
                 config: {
                     api_key: cfg.apiKey,
+                    model: cfg.model || '',
                     source_language: cfg.sourceLanguage || 'en',
                     target_language: cfg.targetLanguage,
                 },
@@ -89,7 +90,12 @@ export class QwenRealtimeClient {
                 this.onError(evt.code, evt.message);
                 break;
             case 'closed':
-                this.isConnected = false;
+                if (this.isConnected) {
+                    this.isConnected = false;
+                    // Free the Rust-side session now; disconnect() would
+                    // early-return once isConnected is false.
+                    invoke('qwen_realtime_stop', { sessionId: this.sessionId }).catch(() => {});
+                }
                 this.onClosed(evt.reason);
                 break;
         }

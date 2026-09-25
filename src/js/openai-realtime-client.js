@@ -43,6 +43,7 @@ export class OpenAiRealtimeClient {
             this.sessionId = await invoke('openai_realtime_start', {
                 config: {
                     api_key: cfg.apiKey,
+                    model: cfg.model || '',
                     source_language: cfg.sourceLanguage || 'auto',
                     target_language: cfg.targetLanguage,
                     voice: cfg.voice || null,
@@ -142,7 +143,12 @@ export class OpenAiRealtimeClient {
                 this.onError(evt.code, evt.message);
                 break;
             case 'closed':
-                this.isConnected = false;
+                if (this.isConnected) {
+                    this.isConnected = false;
+                    // Free the Rust-side session now; disconnect() would
+                    // early-return once isConnected is false.
+                    invoke('openai_realtime_stop', { sessionId: this.sessionId }).catch(() => {});
+                }
                 this.onClosed(evt.reason);
                 break;
         }

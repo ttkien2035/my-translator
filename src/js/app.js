@@ -13,6 +13,43 @@ import { microsoftTTS } from './microsoft-tts.js';
 import { googleFreeTTS } from './google-free-tts.js';
 import { tiktokTTS } from './tiktok-tts.js';
 import { localTTS } from './local-tts.js';
+
+// ─── Settings → Model tab: presets ────────────────────────────
+// Default model ids per real-time engine (must match settings.rs defaults).
+const MODEL_DEFAULTS = {
+    soniox: 'stt-rt-v5',
+    qwen: 'qwen3-livetranslate-flash-realtime',
+    openai: 'gpt-realtime-translate',
+};
+// Helper LLM presets — all OpenAI-compatible (/chat/completions). The user can
+// edit the base URL and type any model id via "Tuỳ chỉnh…".
+const LLM_PRESETS = {
+    deepseek: {
+        baseUrl: 'https://api.deepseek.com/v1',
+        models: ['deepseek-chat', 'deepseek-reasoner'],
+        hint: 'Rẻ, truy cập tốt từ Trung Quốc. Key tại platform.deepseek.com',
+    },
+    dashscope: {
+        baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+        models: ['qwen-plus', 'qwen-turbo', 'qwen-max'],
+        hint: 'Dùng chung key DashScope với engine Qwen. Bản trong nước: https://dashscope.aliyuncs.com/compatible-mode/v1',
+    },
+    zhipu: {
+        baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+        models: ['glm-4-flash', 'glm-4-plus'],
+        hint: 'glm-4-flash miễn phí. Key tại bigmodel.cn',
+    },
+    openai: {
+        baseUrl: 'https://api.openai.com/v1',
+        models: ['gpt-4o-mini', 'gpt-4o'],
+        hint: 'Cần VPN khi ở Trung Quốc.',
+    },
+    custom: {
+        baseUrl: '',
+        models: [],
+        hint: 'Bất kỳ endpoint chuẩn OpenAI (…/v1 → gọi /chat/completions).',
+    },
+};
 import { audioPlayer, readAudioPlayer } from './audio-player.js';
 import { Reader } from './reader.js';
 import { updater } from './updater.js';
@@ -76,6 +113,8 @@ class App {
         await this._checkPlatformSupport();
 
         // Apply saved settings to UI
+        // TTS is always OFF on app start — user must toggle on each session
+        this.ttsEnabled = false;
         this._applySettings(settingsManager.get());
 
         // Bind event listeners
@@ -387,6 +426,7 @@ class App {
         document.getElementById('select-translation-mode').addEventListener('change', (e) => {
             this._updateModeUI(e.target.value);
         });
+        this._bindModelTab();
 
         // Welcome-screen engine cards: pick a class (standard / openai),
         // remember it, hide the picker, sync the rest of the UI.
@@ -760,6 +800,13 @@ class App {
                 (hasKey ? '' : ' · ⚠️ chưa có API key');
         }
 
+        const subModel = document.getElementById('card-model-sub');
+        if (subModel) {
+            const engModel = { soniox: s.soniox_model, qwen: s.qwen_model, openai: s.openai_model }[mode];
+            const llm = s.llm_model ? ` · LLM: ${s.llm_model}` : ' · LLM: chưa cấu hình';
+            subModel.textContent = `${engineNames[mode] || mode}${engModel ? ` (${engModel})` : ''}${llm}`;
+        }
+
         // TTS card: cloud-realtime engines run text-only — reflect on the card, never hide.
         const isCloudRealtime = mode === 'openai' || mode === 'qwen';
         const provNames = {
@@ -780,6 +827,178 @@ class App {
         }
     }
 
+    // ─── Settings → Model tab ──────────────────────────────
+    // Engine/model picker + helper-LLM config. Keys for the real-time engines
+    // stay in the Translation tab; this tab only shows whether they're present.
+
+    _bindModelTab() {
+        document.querySelectorAll('#model-engine-list .model-engine-pick').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (this.isRunning || this.isStarting) {
+                    this._showToast('Tạm dừng phiên trước khi đổi engine', 'error');
+                    return;
+                }
+                const mode = btn.dataset.engine;
+                settingsManager.save({ translation_mode: mode });
+                const select = document.getElementById('select-translation-mode');
+                if (select) select.value = mode;
+                this._updateModeUI(mode);
+                this._populateModelTab();
+            });
+        });
+        document.querySelectorAll('#tab-model select[data-custom]').forEach(sel => {
+            sel.addEventListener('change', () => this._syncCustomModelInput(sel));
+        });
+        document.getElementById('select-llm-provider')?.addEventListener('change', (e) => {
+            this._applyLlmPreset(e.target.value, true);
+        });
+        document.getElementById('btn-toggle-llm-key')?.addEventListener('click', () => {
+            const inp = document.getElementById('input-llm-key');
+            if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+        });
+        document.getElementById('btn-test-llm')?.addEventListener('click', () => this._testLlmConnection());
+        document.getElementById('link-model-to-keys')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this._showSettingsScreen('tab-translation');
+        });
+    }
+
+    /** Show the free-text input only when the select is on "Tuỳ chỉnh…". */
+    _syncCustomModelInput(sel) {
+        const custom = document.getElementById(sel.dataset.custom);
+        if (!custom) return;
+        const isCustom = sel.value === '__custom';
+        custom.style.display = isCustom ? '' : 'none';
+        if (isCustom) custom.focus();
+    }
+
+    /** Select `value` in a model dropdown; non-preset values go to the custom input. */
+    _setModelSelect(selId, value) {
+        const sel = document.getElementById(selId);
+        if (!sel) return;
+        const isPreset = Array.from(sel.options).some(o => o.value === value && value !== '__custom');
+        if (value && !isPreset) {
+            sel.value = '__custom';
+            const custom = document.getElementById(sel.dataset.custom);
+            if (custom) custom.value = value;
+        } else {
+            sel.value = value || sel.options[0]?.value || '';
+        }
+        this._syncCustomModelInput(sel);
+    }
+
+    _readModelSelect(selId) {
+        const sel = document.getElementById(selId);
+        if (!sel) return '';
+        if (sel.value === '__custom') {
+            return document.getElementById(sel.dataset.custom)?.value.trim() || '';
+        }
+        return sel.value;
+    }
+
+    _populateModelTab() {
+        const s = settingsManager.get();
+        const mode = s.translation_mode || 'soniox';
+        document.querySelectorAll('#model-engine-list .model-engine-row').forEach(row => {
+            row.classList.toggle('active', row.dataset.engine === mode);
+        });
+        const keyOf = { soniox: s.soniox_api_key, qwen: s.qwen_api_key, openai: s.openai_api_key };
+        for (const [eng, key] of Object.entries(keyOf)) {
+            const el = document.getElementById(`model-key-${eng}`);
+            if (!el) continue;
+            const ok = !!(key || '').trim();
+            el.textContent = ok ? '● đã có key' : '○ chưa có key';
+            el.classList.toggle('ok', ok);
+        }
+        const localEl = document.getElementById('model-key-local');
+        if (localEl) {
+            localEl.textContent = this.isAppleSilicon ? '● Apple Silicon' : '○ cần Apple Silicon';
+            localEl.classList.toggle('ok', !!this.isAppleSilicon);
+        }
+        this._setModelSelect('select-soniox-model', s.soniox_model || MODEL_DEFAULTS.soniox);
+        this._setModelSelect('select-qwen-model', s.qwen_model || MODEL_DEFAULTS.qwen);
+        this._setModelSelect('select-openai-model', s.openai_model || MODEL_DEFAULTS.openai);
+
+        // Helper LLM
+        const provider = LLM_PRESETS[s.llm_provider] ? s.llm_provider : 'deepseek';
+        const provSel = document.getElementById('select-llm-provider');
+        if (provSel) provSel.value = provider;
+        this._applyLlmPreset(provider, false);
+        const base = document.getElementById('input-llm-base-url');
+        if (base) base.value = s.llm_base_url || LLM_PRESETS[provider].baseUrl;
+        const key = document.getElementById('input-llm-key');
+        if (key) key.value = s.llm_api_key || '';
+        this._setModelSelect('select-llm-model', s.llm_model || LLM_PRESETS[provider].models[0] || '');
+    }
+
+    /** Fill base URL + model options for an LLM provider preset. */
+    _applyLlmPreset(provider, resetValues) {
+        const preset = LLM_PRESETS[provider] || LLM_PRESETS.custom;
+        const base = document.getElementById('input-llm-base-url');
+        if (base && resetValues) base.value = preset.baseUrl;
+        const sel = document.getElementById('select-llm-model');
+        if (sel) {
+            sel.innerHTML = '';
+            for (const m of preset.models) {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                sel.appendChild(opt);
+            }
+            const custom = document.createElement('option');
+            custom.value = '__custom';
+            custom.textContent = 'Tuỳ chỉnh…';
+            sel.appendChild(custom);
+            if (resetValues) this._setModelSelect('select-llm-model', preset.models[0] || '');
+        }
+        const hint = document.getElementById('hint-llm');
+        if (hint) hint.textContent = preset.hint || '';
+    }
+
+    _collectModelTab() {
+        return {
+            soniox_model: this._readModelSelect('select-soniox-model') || MODEL_DEFAULTS.soniox,
+            qwen_model: this._readModelSelect('select-qwen-model') || MODEL_DEFAULTS.qwen,
+            openai_model: this._readModelSelect('select-openai-model') || MODEL_DEFAULTS.openai,
+            llm_provider: document.getElementById('select-llm-provider')?.value || 'deepseek',
+            llm_base_url: document.getElementById('input-llm-base-url')?.value.trim() || '',
+            llm_api_key: document.getElementById('input-llm-key')?.value.trim() || '',
+            llm_model: this._readModelSelect('select-llm-model'),
+        };
+    }
+
+    /** One tiny chat completion against the configured helper LLM. */
+    async _testLlmConnection() {
+        const cfg = this._collectModelTab();
+        const status = document.getElementById('key-status-llm');
+        if (!cfg.llm_api_key || !cfg.llm_base_url || !cfg.llm_model) {
+            this._showToast('Cần đủ Base URL, API key và model', 'error');
+            return;
+        }
+        if (status) { status.className = 'key-status checking'; status.textContent = 'đang kiểm tra…'; }
+        try {
+            const url = cfg.llm_base_url.replace(/\/+$/, '') + '/chat/completions';
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.llm_api_key}` },
+                body: JSON.stringify({
+                    model: cfg.llm_model,
+                    messages: [{ role: 'user', content: 'ping' }],
+                    max_tokens: 5,
+                }),
+            });
+            if (!res.ok) {
+                const txt = (await res.text()).slice(0, 200);
+                throw new Error(`HTTP ${res.status}: ${txt}`);
+            }
+            if (status) { status.className = 'key-status ok'; status.textContent = '✓ kết nối OK'; }
+            this._showToast(`LLM OK — ${cfg.llm_model}`, 'success');
+        } catch (err) {
+            if (status) { status.className = 'key-status bad'; status.textContent = '✗ lỗi'; }
+            this._showToast(`LLM lỗi: ${err.message}`, 'error');
+        }
+    }
+
     // ─── Settings Form ─────────────────────────────────────
 
     _populateSettingsForm() {
@@ -795,6 +1014,7 @@ class App {
         document.getElementById('select-translation-mode').value = s.translation_mode || 'soniox';
         this._updateModeUI(s.translation_mode || 'soniox');
         this._refreshKeyStatus();
+        this._populateModelTab();
 
         // Translation type (one-way / two-way)
         const translationType = s.translation_type || 'one_way';
@@ -941,6 +1161,7 @@ class App {
             max_lines: parseInt(document.getElementById('range-max-lines').value),
             show_original: document.getElementById('check-show-original').checked,
             custom_context: null,
+            ...this._collectModelTab(),
         };
 
         // Parse custom context (rich format)
@@ -1019,14 +1240,15 @@ class App {
             langEl.textContent = `${settings.source_language || 'auto'} → ${settings.target_language || 'vi'}`;
         }
 
-        // Note: saving settings turns TTS narration off (see end of this method), so the
-        // active provider is re-configured on the next TTS toggle — no mid-session re-sync
-        // needed here. Disconnect any non-active provider to drop stale queued audio.
+        // Saving settings must not silently turn narration off (it used to — every
+        // ⌘1/2/3 source switch killed TTS). Keep the toggle, re-apply the active
+        // provider's config, and disconnect non-active providers to drop stale audio.
         if (this._allTTS) {
             const active = this._getActiveTTS();
             for (const tts of this._allTTS) {
                 if (tts !== active && tts.isConnected) tts.disconnect();
             }
+            if (this.ttsEnabled && active) this._configureTTS(active, settings);
         }
 
         // Update transcript UI
@@ -1042,8 +1264,6 @@ class App {
         this.currentSource = settings.audio_source || 'system';
         this._updateSourceButtons();
 
-        // TTS is always OFF on app start — user must toggle on each session
-        this.ttsEnabled = false;
         this._updateTTSButton();
     }
 
@@ -1863,20 +2083,18 @@ class App {
     // — they share the same UX shape (text-only, optional TTS, two-way, etc.).
 
     _engineClassFromMode(mode) {
-        if (mode === 'openai') return 'openai';
-        if (mode === 'qwen') return 'qwen';
-        return 'standard';
+        // Pill buttons are one per engine (soniox / local / openai / qwen).
+        return ['soniox', 'local', 'openai', 'qwen'].includes(mode) ? mode : 'soniox';
     }
 
     _selectEngineClass(klass) {
         const settings = settingsManager.get();
         const currentMode = settings.translation_mode || 'soniox';
         let nextMode = currentMode;
-        if (klass === 'openai') {
-            nextMode = 'openai';
-        } else if (klass === 'qwen') {
-            nextMode = 'qwen';
+        if (klass === 'openai' || klass === 'qwen' || klass === 'soniox' || klass === 'local') {
+            nextMode = klass;
         } else if (klass === 'standard') {
+            // Welcome-screen card still groups Soniox/Local as "Standard".
             // Stay on whatever standard sub-engine was configured before, or
             // default to soniox if previously a cloud realtime engine.
             nextMode = (currentMode === 'soniox' || currentMode === 'local')
@@ -1891,8 +2109,19 @@ class App {
 
     _updatePillState(mode) {
         const klass = this._engineClassFromMode(mode);
+        const s = settingsManager.get();
+        // Readiness dot per engine: key present (cloud) / Apple Silicon (local).
+        const ready = {
+            soniox: !!(s.soniox_api_key || '').trim(),
+            openai: !!(s.openai_api_key || '').trim(),
+            qwen: !!(s.qwen_api_key || '').trim(),
+            local: !!this.isAppleSilicon,
+        };
         document.querySelectorAll('#engine-pill .engine-pill-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.engineClass === klass);
+            const k = btn.dataset.engineClass;
+            btn.classList.toggle('active', k === klass);
+            const dot = btn.querySelector('.engine-pill-dot');
+            if (dot) dot.classList.toggle('ok', !!ready[k]);
         });
     }
 
@@ -2202,7 +2431,9 @@ class App {
     async start() {
         const settings = settingsManager.get();
         this.translationMode = settings.translation_mode || 'soniox';
-        console.log('[App] start() called, translation_mode:', this.translationMode, 'settings:', JSON.stringify(settings));
+        // Never log the settings object — it contains every API key.
+        console.log('[App] start() called, translation_mode:', this.translationMode,
+            'source:', settings.audio_source, 'langs:', `${settings.source_language}→${settings.target_language}`);
 
         // Local MLX needs macOS Apple Silicon — block here (option is selectable
         // but can't actually run on other platforms) instead of crashing.
@@ -2346,6 +2577,7 @@ class App {
         try {
             await this.openAiClient.connect({
                 apiKey: settings.openai_api_key,
+                model: settings.openai_model || MODEL_DEFAULTS.openai,
                 sourceLanguage: settings.source_language || 'auto',
                 targetLanguage: settings.target_language,
                 audioOutput: false,
@@ -2428,6 +2660,7 @@ class App {
                     : 'en';
             await this.qwenClient.connect({
                 apiKey: settings.qwen_api_key,
+                model: settings.qwen_model || MODEL_DEFAULTS.qwen,
                 sourceLanguage: sourceLang,
                 targetLanguage: settings.target_language,
             });
@@ -2470,6 +2703,7 @@ class App {
             apiKey: settings.soniox_api_key,
             sourceLanguage: settings.source_language,
             targetLanguage: settings.target_language,
+            model: settings.soniox_model || MODEL_DEFAULTS.soniox,
             customContext: settings.custom_context,
             translationType: settings.translation_type || 'one_way',
             languageA: settings.language_a,
@@ -2820,9 +3054,11 @@ class App {
         // Keep transcript visible — don't clear
         this.transcriptUI.clearProvisional();
 
-        // Stop TTS
-        elevenLabsTTS.disconnect();
-        edgeTTSRust.disconnect();
+        // Stop TTS — every provider, not just the two WebSocket ones, so queued
+        // lines don't keep playing after Pause.
+        for (const tts of this._allTTS || [elevenLabsTTS, edgeTTSRust]) {
+            try { tts.disconnect(); } catch (e) { console.warn('[TTS] disconnect failed:', e); }
+        }
 
         audioPlayer.stop();
 

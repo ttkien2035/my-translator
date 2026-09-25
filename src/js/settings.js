@@ -54,6 +54,7 @@ const DEFAULT_SETTINGS = {
   llm_base_url: '',
   llm_api_key: '',
   llm_model: '',
+  local_llm_gguf: '',
   // Settings → Micro (mirror settings.rs defaults)
   mic_voice_processing: false,
   mic_highpass: true,

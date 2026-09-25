@@ -36,12 +36,28 @@ hex = "0.4"
 rand = "0.8"
 tokio = { version = "1", features = ["sync", "rt", "macros", "time"] }
 rubato = "0.16"
-# Local offline TTS: Piper (VITS) via sherpa-onnx (static-linked, no dylib bundling).
-sherpa-onnx = "1.13.3"
+# sherpa-onnx: Piper TTS, Silero VAD, GTCRN denoiser, SenseVoice ASR.
+# Static on the release platforms (no dylib bundling). Linux is a dev/CI
+# target only: its prebuilt static libs use the old libstdc++ string ABI and
+# crash inside onnxruntime on Ubuntu 24.04, so link the shared libs there.
+sherpa-onnx = { version = "1.13.3", default-features = false }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+sherpa-onnx = { version = "1.13.3", default-features = false, features = ["static"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+sherpa-onnx = { version = "1.13.3", default-features = false, features = ["shared"] }
 tauri-plugin-dialog = "2"
-# Model archive extraction (.tar.bz2) for downloaded Piper voices.
+# Model archive extraction (.tar.bz2) for downloaded Piper voices / SenseVoice.
 tar = "0.4"
 bzip2 = "0.4"
+# Local translation LLM (Qwen2.5 GGUF) via llama.cpp, statically linked.
+# No default features: `common` (llama.cpp's common lib) isn't needed.
+llama-cpp-2 = { version = "0.1.157", default-features = false }
+
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+# Apple Silicon: run the LLM on the GPU through Metal.
+llama-cpp-2 = { version = "0.1.157", default-features = false, features = ["metal"] }
 
 # macOS: ScreenCaptureKit for system audio
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -62,3 +78,7 @@ windows = { version = "0.58", features = [
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.0"
 tauri-plugin-process = "2"
+
+[dev-dependencies]
+# Test-only: SIGABRT → Rust backtrace for FFI crash diagnosis.
+libc = "0.2"

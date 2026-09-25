@@ -1582,42 +1582,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   padding: 16px 24px;
 }
 
-.modal-desc {
-  color: var(--text-secondary);
-  font-size: 0.85em;
-  line-height: 1.5;
-  margin-bottom: 20px;
-}
-
-.modal-footer {
-  padding: 12px 24px 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.secondary-btn {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 8px 20px;
-  font-size: 0.85em;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.secondary-btn:hover {
-  background: var(--bg-active);
-  color: var(--text-primary);
-}
-
 /* Progress bar */
-.progress-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-}
 
 .progress-bar {
   flex: 1;
@@ -1657,55 +1622,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 /* Step indicators */
-.setup-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.setup-step {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-}
-
-.setup-step.active {
-  background: var(--accent-glow);
-}
-
-.setup-step.done {
-  opacity: 0.6;
-}
-
-.step-icon {
-  font-size: 0.9em;
-  width: 20px;
-  text-align: center;
-}
-
-.step-text {
-  color: var(--text-secondary);
-  font-size: 0.85em;
-}
-
-.setup-step.active .step-text {
-  color: var(--text-primary);
-  font-weight: 500;
-}
 
 /* Status text */
-.setup-status {
-  padding: 8px 12px;
-  background: var(--bg-input);
-  border-radius: var(--radius-sm);
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-}
 
 #setup-status-text {
   color: var(--text-muted);

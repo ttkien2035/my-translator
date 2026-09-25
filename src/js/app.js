@@ -79,7 +79,7 @@ class App {
         this.translationMode = 'soniox'; // 'soniox' | 'local'
         this.transcriptUI = null;
         this.appWindow = getCurrentWindow();
-        this.localPipelineChannel = null;
+        this.localClient = null;       // LocalEngineClient while a Local session runs
         this.localPipelineReady = false;
         this.recordingStartTime = null;
         this.sessionStartTime = null;  // Session start timestamp (new Date())
@@ -188,30 +188,11 @@ class App {
                 navigator.userAgent.includes('Mac OS X');
         }
 
-        if (!this.isAppleSilicon) {
-            // Keep Local MLX SELECTABLE — don't hard-block. We highlight a warning
-            // when the user picks it (see _updateModeUI) and stop them at Start
-            // (see start()) so they can't crash into an unsupported runtime.
-            // Local TTS is CPU-based and unaffected; only the MLX engine needs
-            // macOS Apple Silicon.
-            const select = document.getElementById('select-translation-mode');
-            const localOption = select?.querySelector('option[value="local"]');
-            if (localOption) {
-                // Platform-accurate label: Mac Intel needs Apple Silicon;
-                // Windows/Linux aren't supported at all.
-                const reason = this._platformOs === 'macos'
-                    ? ' — cần chip Apple Silicon'
-                    : ' — chỉ hỗ trợ macOS Apple Silicon';
-                localOption.textContent += reason;
-            }
-
-            // Force soniox mode if user had local selected
-            const settings = settingsManager.get();
-            if (settings.translation_mode === 'local') {
-                settings.translation_mode = 'soniox';
-                settingsManager.save(settings);
-            }
-        }
+        // The Local engine (SenseVoice + Qwen via llama.cpp) runs in-process on
+        // every platform; Apple Silicon just gets Metal. Readiness depends only
+        // on the models being downloaded.
+        this._localModelsReady = null;
+        this._refreshLocalModelsStatus();
     }
 
     // ─── Event Binding ──────────────────────────────────────
@@ -886,6 +867,8 @@ class App {
             if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
         });
         document.getElementById('btn-test-llm')?.addEventListener('click', () => this._testLlmConnection());
+        document.getElementById('btn-local-models-download')
+            ?.addEventListener('click', () => this._downloadLocalModels());
         document.getElementById('link-model-to-keys')?.addEventListener('click', (e) => {
             e.preventDefault();
             this._showSettingsScreen('tab-translation');
@@ -939,11 +922,9 @@ class App {
             el.textContent = ok ? '● đã có key' : '○ chưa có key';
             el.classList.toggle('ok', ok);
         }
-        const localEl = document.getElementById('model-key-local');
-        if (localEl) {
-            localEl.textContent = this.isAppleSilicon ? '● Apple Silicon' : '○ cần Apple Silicon';
-            localEl.classList.toggle('ok', !!this.isAppleSilicon);
-        }
+        const ggufInput = document.getElementById('input-local-gguf');
+        if (ggufInput) ggufInput.value = s.local_llm_gguf || '';
+        this._refreshLocalModelsStatus();
         this._setModelSelect('select-soniox-model', s.soniox_model || MODEL_DEFAULTS.soniox);
         this._setModelSelect('select-qwen-model', s.qwen_model || MODEL_DEFAULTS.qwen);
         this._setModelSelect('select-openai-model', s.openai_model || MODEL_DEFAULTS.openai);
@@ -993,6 +974,7 @@ class App {
             llm_base_url: document.getElementById('input-llm-base-url')?.value.trim() || '',
             llm_api_key: document.getElementById('input-llm-key')?.value.trim() || '',
             llm_model: this._readModelSelect('select-llm-model'),
+            local_llm_gguf: document.getElementById('input-local-gguf')?.value.trim() || '',
         };
     }
 
@@ -2434,7 +2416,7 @@ class App {
             soniox: !!(s.soniox_api_key || '').trim(),
             openai: !!(s.openai_api_key || '').trim(),
             qwen: !!(s.qwen_api_key || '').trim(),
-            local: !!this.isAppleSilicon,
+            local: this._localModelsReady === true,
         };
         document.querySelectorAll('#engine-pill .engine-pill-btn').forEach(btn => {
             const k = btn.dataset.engineClass;
@@ -2491,7 +2473,7 @@ class App {
         const hintQwen = document.getElementById('hint-mode-qwen');
         const ENGINE_HINTS = {
             soniox: 'Cloud · 70+ languages · ~$0.12/hr',
-            local: 'Offline · free · ~3–4s delay',
+            local: 'Offline · SenseVoice + Qwen2.5 trên máy · ~2–3 s sau khi hết câu',
             openai: 'Cloud · 13 languages · text-only captions',
             qwen: 'Cloud · 60+ languages · text-only · free preview · pick a source language',
         };
@@ -2504,7 +2486,7 @@ class App {
         // The option stays selectable (Hiếu's ask): the user needs to pick it
         // to add the key; start() blocks launch until the requirement is met.
         const s = settingsManager.get();
-        const localUnsupported = isLocal && !this.isAppleSilicon;
+        const localUnsupported = isLocal && this._localModelsReady === false;
         const missingKey =
             (isSoniox && !(s.soniox_api_key || '').trim()) ? 'Soniox' :
             (isOpenAi && !(s.openai_api_key || '').trim()) ? 'OpenAI Realtime' :
@@ -2513,9 +2495,7 @@ class App {
             const warn = localUnsupported || !!missingKey;
             hintSoniox.classList.toggle('hint-warning', warn);
             if (localUnsupported) {
-                hintSoniox.textContent = this._platformOs === 'macos'
-                    ? '⚠️ Local MLX cần chip Apple Silicon — máy này không chạy được, hãy chọn engine khác.'
-                    : '⚠️ Local MLX chỉ chạy trên macOS Apple Silicon — trên máy này hãy chọn engine khác.';
+                hintSoniox.textContent = '⚠️ Local cần tải model (Cài đặt › Model › Local › Tải model) rồi mới bắt đầu được.';
             } else if (missingKey) {
                 hintSoniox.textContent = `⚠️ ${missingKey} cần API key — nhập key bên dưới rồi mới bắt đầu được.`;
             }
@@ -2754,11 +2734,11 @@ class App {
         console.log('[App] start() called, translation_mode:', this.translationMode,
             'source:', settings.audio_source, 'langs:', `${settings.source_language}→${settings.target_language}`);
 
-        // Local MLX needs macOS Apple Silicon — block here (option is selectable
-        // but can't actually run on other platforms) instead of crashing.
-        if (this.translationMode === 'local' && !this.isAppleSilicon) {
-            this._showToast('Local MLX chỉ chạy trên macOS Apple Silicon. Hãy chọn engine khác trong Cài đặt.', 'error');
+        // Local engine needs its models on disk (checked again in _startLocalMode).
+        if (this.translationMode === 'local' && this._localModelsReady === false) {
+            this._showToast('Local cần tải model trước (Cài đặt › Model › Local)', 'error');
             this._showView('settings');
+            this._showSettingsScreen('tab-model');
             return;
         }
 
@@ -3063,273 +3043,151 @@ class App {
     }
 
     async _startLocalMode(settings) {
-        console.log('[App] Starting Local mode (MLX models)...');
+        console.log('[App] Starting Local engine (SenseVoice + Qwen, in-process)...');
         this.transcriptUI.provider = 'soniox';
         this._updateStatus('connecting');
 
-        // Step 0: Check audio permission FIRST (before loading models)
-        try {
-            await invoke('start_capture', {
-                source: this.currentSource,
-                channel: new window.__TAURI__.core.Channel(), // dummy channel for permission check
-            });
-            await invoke('stop_capture');
-        } catch (err) {
-            console.error('[App] Audio permission check failed:', err);
-            this._showToast(`Audio permission required: ${err}`, 'error');
-            this.isRunning = false;
-            this._updateStartButton();
-            this._updateStatus('error');
-            this.transcriptUI.clear();
-            this.transcriptUI.showPlaceholder();
-            return;
-        }
-
-        // Step 1: Check if MLX setup is complete
-        try {
-            const checkResult = await invoke('check_mlx_setup');
-            const status = JSON.parse(checkResult);
-            if (!status.ready) {
-                this._showToast('Setting up MLX models (one-time, ~5GB)...', 'success');
-                this.transcriptUI.showStatusMessage('Downloading MLX models (one-time setup)...');
-                await this._runMlxSetup();
-            }
-        } catch (err) {
-            console.warn('[App] MLX check failed (proceeding anyway):', err);
-        }
-
-        console.log('[App] MLX check passed, starting pipeline...');
-
-        // Step 1: Start pipeline FIRST (independent of audio)
-        try {
-            this._showToast('Starting local pipeline...', 'success');
-
-            this.localPipelineChannel = new window.__TAURI__.core.Channel();
-            this.localPipelineReady = false;
-
-            this.localPipelineChannel.onmessage = (msg) => {
-                let data;
-                try {
-                    data = (typeof msg === 'string') ? JSON.parse(msg) : msg;
-                } catch (e) {
-                    console.warn('[Local] JSON parse failed:', typeof msg, msg);
-                    return;
-                }
-                try {
-                    this._handleLocalPipelineResult(data);
-                } catch (e) {
-                    console.error('[Local] Handler error for type:', data?.type, e);
-                }
-            };
-
-            const sourceLangMap = {
-                'auto': 'auto', 'ja': 'Japanese', 'en': 'English',
-                'zh': 'Chinese', 'ko': 'Korean', 'vi': 'Vietnamese',
-            };
-            const sourceLang = sourceLangMap[settings.source_language] || 'Japanese';
-
-            await invoke('start_local_pipeline', {
-                sourceLang: sourceLang,
-                targetLang: settings.target_language || 'vi',
-                channel: this.localPipelineChannel,
-            });
-            console.log('[App] Local pipeline spawned');
-        } catch (err) {
-            console.error('Failed to start pipeline:', err);
-            this._showToast(`Pipeline error: ${err}`, 'error');
+        // Models are downloaded from Settings › Model › Local; never start a
+        // session that can't run.
+        if (!(await this._refreshLocalModelsStatus())) {
+            this._showToast('Local cần tải model trước (Cài đặt › Model › Local)', 'error');
+            this._showView('settings');
+            this._showSettingsScreen('tab-model');
             await this.pause();
             return;
         }
 
-        // Step 2: Start audio capture
-        try {
-            const audioChannel = new window.__TAURI__.core.Channel();
-            let audioChunkCount = 0;
+        const { LocalEngineClient } = await import('./local-engine-client.js');
+        this.localClient = new LocalEngineClient();
+        this.localPipelineReady = false;
 
-            audioChannel.onmessage = async (pcmData) => {
-                audioChunkCount++;
-                if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
-                    console.log(`[Local] Audio batch #${audioChunkCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
+        this.localClient.onStatus = (state, message) => {
+            if (state === 'loading') {
+                if (message) {
+                    const statusText = document.getElementById('status-text');
+                    if (statusText) statusText.textContent = message;
+                    this.transcriptUI.showStatusMessage(message);
                 }
-                try {
-                    // Raw body — the Rust side reads the invoke body as bytes.
-                    await invoke('send_audio_to_pipeline', new Uint8Array(pcmData));
-                } catch (e) {
-                    // Pipeline may not be ready yet
-                }
-            };
-
-            await invoke('start_capture', {
-                source: this.currentSource,
-                channel: audioChannel,
-            });
-            console.log('[App] Audio capture started');
-        } catch (err) {
-            console.error('Audio capture failed (pipeline still running):', err);
-            this._showToast(`Audio: ${err}. Pipeline still loading...`, 'error');
-        }
-    }
-
-    _handleLocalPipelineResult(data) {
-        switch (data.type) {
-            case 'ready':
+            } else if (state === 'ready') {
                 this.localPipelineReady = true;
                 this._updateStatus('connected');
                 this.transcriptUI.removeStatusMessage();
                 this.transcriptUI.showListening();
-                this._showToast('Local models ready!', 'success');
-                break;
-            case 'result':
-                // Chase effect: show original first (gray), then translation (white)
-                if (data.original) {
-                    this.transcriptUI.addOriginal(data.original);
+                this._showToast('Local: model đã sẵn sàng', 'success');
+            } else if (state === 'backlog_skipped') {
+                // Utterances dropped so translation stays current (count, not seconds).
+                const n = parseInt(message, 10) || 0;
+                if (n > 0) this._showToast(`⏩ Bỏ qua ${n} câu để bám kịp`, 'error');
+            }
+        };
+        this.localClient.onResult = (src, tgt) => {
+            // Chase effect: original first (dim), translation right after.
+            if (src) this.transcriptUI.addOriginal(src);
+            setTimeout(() => {
+                if (tgt) {
+                    this.transcriptUI.addTranslation(tgt);
+                    this._speakIfEnabled(tgt);
                 }
-                // Small delay for visual "chase" effect
-                setTimeout(() => {
-                if (data.translated) {
-                    this.transcriptUI.addTranslation(data.translated);
-                    this._speakIfEnabled(data.translated);
+            }, 80);
+            sessionStore.addSegment(src || '', tgt || '');
+            this._autoMarkExam(src || '');
+        };
+        this.localClient.onError = (code, message) => {
+            console.error('[Local]', code, message);
+            this._showToast(`Local ${code}: ${message}`, 'error');
+            if (code === 'asr_load' || code === 'llm_load') this._updateStatus('error');
+        };
+        this.localClient.onClosed = (reason) => {
+            console.warn('[Local] closed:', reason);
+            if (this.isRunning) this._updateStatus('disconnected');
+        };
+
+        try {
+            const ctx = this._activeProfileContext();
+            await this.localClient.connect({
+                sourceLanguage: settings.source_language || 'auto',
+                targetLanguage: settings.target_language || 'vi',
+                glossary: (ctx?.translation_terms || []).map(t => ({ source: t.source, target: t.target })),
+            });
+        } catch (err) {
+            console.error('Failed to start Local engine:', err);
+            this._showToast(`Local: ${String(err).replace(/^models_missing:\s*/, '')}`, 'error');
+            this.localClient = null;
+            await this.pause();
+            return;
+        }
+
+        // Audio capture → engine (raw bytes). Models keep loading in the
+        // background; audio arriving before "ready" is queued (bounded).
+        try {
+            const audioChannel = new window.__TAURI__.core.Channel();
+            let audioChunkCount = 0;
+            audioChannel.onmessage = (pcmData) => {
+                audioChunkCount++;
+                if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
+                    console.log(`[Local] Audio batch #${audioChunkCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
-                }, 80);
-                // Persist atomically — Local pipeline gives both texts in
-                // one event so we don't need FIFO pairing.
-                sessionStore.addSegment(data.original || '', data.translated || '');
-                this._autoMarkExam(data.original || '');
-                break;
-            case 'status':
-                const msg = data.message || 'Loading...';
-                if (msg.startsWith('backlog_skipped:')) {
-                    this._onBacklog(false, parseFloat(msg.slice('backlog_skipped:'.length)) || 0);
-                    break;
-                }
-                // Status bar: show compact message (strip [pipeline] prefix)
-                const statusText = document.getElementById('status-text');
-                if (statusText) {
-                    const compact = msg.replace(/^\[pipeline\]\s*/, '');
-                    statusText.textContent = compact;
-                }
-                // Transcript area: only show loading/starting messages, not debug logs
-                if (!msg.startsWith('[pipeline]')) {
-                    this.transcriptUI.showStatusMessage(msg);
-                }
-                break;
-            case 'done':
-                this._updateStatus('disconnected');
-                break;
+                const bytes = new Uint8Array(pcmData);
+                this.localClient?.sendAudio(bytes.buffer);
+            };
+            await invoke('start_capture', { source: this.currentSource, channel: audioChannel });
+            console.log('[App] Audio capture started');
+        } catch (err) {
+            console.error('Audio capture failed:', err);
+            this._showToast(`Audio: ${err}`, 'error');
+            await this.pause();
         }
     }
 
-    async _runMlxSetup() {
-        const modal = document.getElementById('setup-modal');
-        const progressFill = document.getElementById('setup-progress-fill');
-        const progressPct = document.getElementById('setup-progress-pct');
-        const statusText = document.getElementById('setup-status-text');
-        const cancelBtn = document.getElementById('btn-cancel-setup');
+    /** Local engine model status → updates the Model tab row; true when all installed. */
+    async _refreshLocalModelsStatus() {
+        const el = document.getElementById('model-key-local');
+        const btn = document.getElementById('btn-local-models-download');
+        try {
+            const list = await invoke('local_models_status');
+            const missing = list.filter(m => !m.installed);
+            this._localModelsReady = missing.length === 0;
+            if (el) {
+                el.textContent = this._localModelsReady
+                    ? `● đã cài${this.isAppleSilicon ? ' · Metal' : ''}`
+                    : `○ chưa tải (${(missing.reduce((a, m) => a + m.size, 0) / 1073741824).toFixed(1)} GB)`;
+                el.classList.toggle('ok', this._localModelsReady);
+            }
+            if (btn) btn.style.display = this._localModelsReady ? 'none' : '';
+        } catch (err) {
+            this._localModelsReady = false;
+            if (el) { el.textContent = '✗ không kiểm tra được'; el.classList.remove('ok'); }
+        }
+        this._updatePillState(settingsManager.get().translation_mode || 'soniox');
+        return this._localModelsReady;
+    }
 
-        // Step mapping: step name → total progress weight
-        const stepWeights = { check: 5, venv: 10, packages: 35, models: 50 };
-        let totalProgress = 0;
-
-        const updateStep = (stepName, icon, isActive) => {
-            const stepEl = document.getElementById(`step-${stepName}`);
-            if (!stepEl) return;
-            stepEl.querySelector('.step-icon').textContent = icon;
-            stepEl.classList.toggle('active', isActive);
-            stepEl.classList.toggle('done', icon === '✅');
+    async _downloadLocalModels() {
+        const btn = document.getElementById('btn-local-models-download');
+        const progress = document.getElementById('local-models-progress');
+        if (btn) btn.disabled = true;
+        const onProgress = new Channel();
+        onProgress.onmessage = (msg) => {
+            if (!progress) return;
+            const short = msg.id.startsWith('sensevoice') ? 'SenseVoice' : 'Qwen';
+            if (msg.phase === 'downloading' && msg.total > 0) {
+                progress.textContent = `${short}: ${Math.floor((msg.received / msg.total) * 100)}% (${(msg.received / 1048576).toFixed(0)} MB)`;
+            } else if (msg.phase === 'extracting') {
+                progress.textContent = `${short}: đang giải nén…`;
+            } else if (msg.phase === 'done') {
+                progress.textContent = `${short}: ✓`;
+            }
         };
-
-        const updateProgress = (pct) => {
-            totalProgress = Math.min(100, pct);
-            progressFill.style.width = totalProgress + '%';
-            progressPct.textContent = Math.round(totalProgress) + '%';
-        };
-
-        // Show modal
-        modal.style.display = 'flex';
-
-        return new Promise((resolve, reject) => {
-            const channel = new window.__TAURI__.core.Channel();
-
-            // Cancel handler
-            const onCancel = () => {
-                modal.style.display = 'none';
-                reject(new Error('Setup cancelled'));
-            };
-            cancelBtn.addEventListener('click', onCancel, { once: true });
-
-            channel.onmessage = (msg) => {
-                let data;
-                try {
-                    data = (typeof msg === 'string') ? JSON.parse(msg) : msg;
-                } catch (e) {
-                    return;
-                }
-
-                switch (data.type) {
-                    case 'progress':
-                        statusText.textContent = data.message || 'Working...';
-
-                        // Update step indicators
-                        if (data.step) {
-                            // Mark previous steps as done
-                            const steps = ['check', 'venv', 'packages', 'models'];
-                            const currentIdx = steps.indexOf(data.step);
-                            steps.forEach((s, i) => {
-                                if (i < currentIdx) updateStep(s, '✅', false);
-                                else if (i === currentIdx) updateStep(s, '🔄', true);
-                            });
-
-                            if (data.done) {
-                                updateStep(data.step, '✅', false);
-                            }
-
-                            // Calculate overall progress
-                            let pct = 0;
-                            steps.forEach((s, i) => {
-                                if (i < currentIdx) pct += stepWeights[s];
-                                else if (i === currentIdx) {
-                                    pct += (data.progress || 0) / 100 * stepWeights[s];
-                                }
-                            });
-                            updateProgress(pct);
-                        }
-                        break;
-
-                    case 'complete':
-                        updateProgress(100);
-                        statusText.textContent = '✅ ' + (data.message || 'Setup complete!');
-                        ['check', 'venv', 'packages', 'models'].forEach(s => updateStep(s, '✅', false));
-
-                        // Close modal after brief delay
-                        setTimeout(() => {
-                            modal.style.display = 'none';
-                            resolve();
-                        }, 1000);
-                        break;
-
-                    case 'error':
-                        statusText.textContent = '❌ ' + (data.message || 'Setup failed');
-                        cancelBtn.textContent = 'Close';
-                        cancelBtn.removeEventListener('click', onCancel);
-                        cancelBtn.addEventListener('click', () => {
-                            modal.style.display = 'none';
-                            reject(new Error(data.message));
-                        }, { once: true });
-                        break;
-
-                    case 'log':
-                        console.log('[MLX Setup]', data.message);
-                        break;
-                }
-            };
-
-            invoke('run_mlx_setup', { channel })
-                .catch(err => {
-                    statusText.textContent = '❌ ' + err;
-                    modal.style.display = 'none';
-                    reject(err);
-                });
-        });
+        try {
+            await invoke('local_models_download', { onProgress });
+            this._showToast('Đã tải model Local (SenseVoice + Qwen2.5) ✓', 'success');
+            if (progress) progress.textContent = '';
+        } catch (err) {
+            this._showToast(`Tải model thất bại: ${err}`, 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+            await this._refreshLocalModelsStatus();
+        }
     }
 
     // Pause: stop capture and persist the current chunk, but keep the session
@@ -3348,11 +3206,9 @@ class App {
         }
 
         if (this.translationMode === 'local') {
-            // Stop local pipeline
-            try {
-                await invoke('stop_local_pipeline');
-            } catch (err) {
-                console.error('Failed to stop local pipeline:', err);
+            if (this.localClient) {
+                try { await this.localClient.disconnect(); } catch {}
+                this.localClient = null;
             }
             this.localPipelineReady = false;
             this.transcriptUI.removeStatusMessage();

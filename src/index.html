@@ -384,7 +384,7 @@
           <span class="field-label">Engine</span>
           <select id="select-translation-mode">
             <option value="soniox">☁️ Soniox</option>
-            <option value="local">🖥️ Local MLX</option>
+            <option value="local">🖥️ Local (offline, trên máy)</option>
             <option value="openai">⚡ OpenAI Realtime</option>
             <option value="qwen">🌏 Qwen LiveTranslate Flash</option>
           </select>
@@ -753,9 +753,14 @@
               <input type="text" id="input-openai-model-custom" class="model-engine-custom" placeholder="tên model OpenAI realtime" autocomplete="off" style="display:none" />
             </div>
             <div class="model-engine-row" data-engine="local">
-              <button type="button" class="model-engine-pick" data-engine="local">🖥️ Local MLX</button>
-              <span class="model-engine-key" id="model-key-local">○ cần Apple Silicon</span>
-              <p class="hint" style="grid-column:1 / -1; margin:0">Offline · Whisper + Gemma trên máy · cài qua Engine dịch › Local</p>
+              <button type="button" class="model-engine-pick" data-engine="local">🖥️ Local (offline)</button>
+              <span class="model-engine-key" id="model-key-local">○ chưa tải</span>
+              <p class="hint" style="grid-column:1 / -1; margin:0">SenseVoice-small (nhận dạng, 163 MB) + Qwen2.5-3B-Instruct Q4 (dịch, 2,1 GB) chạy ngay trong app — không Python, Apple Silicon dùng Metal. Từ điển của hồ sơ môn học được đưa vào prompt dịch.</p>
+              <div class="input-group" style="grid-column:1 / -1; align-items:center">
+                <button id="btn-local-models-download" class="btn-secondary small" type="button">Tải model (2,3 GB)</button>
+                <span id="local-models-progress" class="hint" style="margin:0 0 0 8px"></span>
+              </div>
+              <input type="text" id="input-local-gguf" class="model-engine-custom" style="grid-column:1 / -1" placeholder="GGUF tuỳ chỉnh (đường dẫn; để trống = Qwen2.5-3B)" autocomplete="off" />
             </div>
           </div>
         </div>
@@ -1162,61 +1167,6 @@
         <tr><td><kbd>Esc</kbd></td><td>Về màn hình chính / đóng bảng này</td></tr>
         <tr><td><kbd>?</kbd></td><td>Mở bảng phím tắt</td></tr>
       </table>
-    </div>
-  </div>
-
-  <!-- ═══════════════════ SETUP MODAL ═══════════════════ -->
-  <div id="setup-modal" class="modal-overlay" style="display:none">
-    <div class="modal-card">
-      <div class="modal-header">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2">
-          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-          <path d="M2 17l10 5 10-5" />
-          <path d="M2 12l10 5 10-5" />
-        </svg>
-        <h3>Setting up Local Models</h3>
-      </div>
-
-      <div class="modal-body">
-        <p class="modal-desc">Downloading and installing MLX models for offline translation. This is a one-time setup.</p>
-
-        <!-- Progress bar -->
-        <div class="progress-container">
-          <div class="progress-bar">
-            <div id="setup-progress-fill" class="progress-fill"></div>
-          </div>
-          <span id="setup-progress-pct" class="progress-pct">0%</span>
-        </div>
-
-        <!-- Step indicators -->
-        <div class="setup-steps">
-          <div class="setup-step" id="step-check">
-            <span class="step-icon">⏳</span>
-            <span class="step-text">Checking Python</span>
-          </div>
-          <div class="setup-step" id="step-venv">
-            <span class="step-icon">⏳</span>
-            <span class="step-text">Creating environment</span>
-          </div>
-          <div class="setup-step" id="step-packages">
-            <span class="step-icon">⏳</span>
-            <span class="step-text">Installing packages</span>
-          </div>
-          <div class="setup-step" id="step-models">
-            <span class="step-icon">⏳</span>
-            <span class="step-text">Downloading models (~5GB)</span>
-          </div>
-        </div>
-
-        <!-- Current status -->
-        <div class="setup-status">
-          <span id="setup-status-text">Preparing...</span>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button id="btn-cancel-setup" class="secondary-btn">Cancel</button>
-      </div>
     </div>
   </div>
 

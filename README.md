@@ -36,7 +36,7 @@ Grab the matching file from the [latest release](https://github.com/phuc-nt/my-t
                                     ┌── ☁️  Soniox  (text)              ──┐
 System Audio / Mic → 16kHz PCM ─────┼── ⚡ OpenAI Realtime (text+🔊)      ─┼─→ Overlay UI
                                     ├── 🌏 Qwen LiveTranslate Flash (text only) │
-                                    └── 🖥️  Local MLX  (text, offline)   ─┘
+                                    └── 🖥️  Local (SenseVoice + Qwen, offline) ─┘
                                                                             ↓ (optional, text engines)
                                                   TTS (Edge / Google / ElevenLabs) → 🔊
 ```
@@ -45,12 +45,12 @@ Four translation engines, pick what fits your call:
 
 | Feature | Detail |
 |---------|--------|
-| **Engines** | ☁️ Soniox · ⚡ OpenAI Realtime · 🌏 Qwen LiveTranslate Flash · 🖥️ Local MLX |
-| **Latency** | ~2 s (Soniox / OpenAI) · ~4 s (Qwen) · ~10 s (Local) |
-| **Languages** | 70+ source → any target (Soniox), 13 targets (OpenAI), 60+ source+target (Qwen), JA/EN/ZH/KO → VI/EN (Local) |
+| **Engines** | ☁️ Soniox · ⚡ OpenAI Realtime · 🌏 Qwen LiveTranslate Flash · 🖥️ Local (SenseVoice ASR + Qwen2.5 via llama.cpp, in-process Rust) |
+| **Latency** | ~2 s (Soniox / OpenAI) · ~4 s (Qwen) · ~2–3 s after the sentence ends (Local) |
+| **Languages** | 70+ source → any target (Soniox), 13 targets (OpenAI), 60+ source+target (Qwen), ZH/EN/JA/KO/YUE → any target the LLM knows (Local) |
 | **Cost** | ~$0.12/hr (Soniox) · ~$4/hr (OpenAI, includes voice) · Free preview (Qwen, text-only) · Free (Local) |
 | **TTS** | 3 providers for Soniox / Local (Edge free, Google, ElevenLabs) — OpenAI streams its own voice (off by default), Qwen text-only |
-| **Platform** | macOS (ARM + Intel) · Windows · Local mode = Apple Silicon only |
+| **Platform** | macOS (ARM + Intel) · Windows · Local runs everywhere (Apple Silicon uses Metal; models download on demand, ~2.3 GB) |
 | **Signed** | ✅ macOS signed & notarized |
 | **Auto-Update** | ✅ Built-in, check & install from Settings |
 
@@ -130,9 +130,9 @@ Alibaba DashScope `qwen3-livetranslate-flash-realtime` — streams **translated 
 
 Source language must be picked explicitly (auto-detect is disabled on this engine — Live Flash stalls on real mic input when source is "auto"). Two-way mode and the custom TTS toggle are also disabled while Qwen is selected.
 
-### 🖥️ Local Mode (Apple Silicon only)
+### 🖥️ Local Mode (offline, pure Rust)
 
-Experimental offline mode using MLX + Whisper + Gemma — runs 100% on-device. JA/EN/ZH/KO → VI/EN.
+Runs 100% on-device with no Python: **SenseVoice-small** (sherpa-onnx) recognises ZH/EN/JA/KO/YUE, **Qwen2.5-3B-Instruct** (llama.cpp, Metal on Apple Silicon) translates — with the active course glossary injected into the prompt. Sentences are cut by Silero VAD, so a translation appears ~2–3 s after the speaker pauses. Models (~2.3 GB) download only when you press *Tải model* in Settings › Model › Local.
 
 ---
 
@@ -155,7 +155,8 @@ Experimental offline mode using MLX + Whisper + Gemma — runs 100% on-device. J
 - **[cpal](https://github.com/RustAudio/cpal)** — Cross-platform microphone
 - **[Soniox](https://soniox.com)** — Real-time STT + translation
 - **[OpenAI Realtime Translate](https://platform.openai.com/docs/guides/realtime)** — `gpt-realtime-translate` (text + native voice)
-- **[MLX](https://github.com/ml-explore/mlx)** — On-device Whisper + Gemma for offline mode
+- **[llama.cpp](https://github.com/ggml-org/llama.cpp) via [llama-cpp-2](https://crates.io/crates/llama-cpp-2)** — Qwen2.5-3B-Instruct (GGUF) translation for offline mode
+- **[SenseVoice](https://github.com/FunAudioLLM/SenseVoice) via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** — on-device Chinese/English/Japanese/Korean speech recognition
 - **[Piper](https://github.com/rhasspy/piper) via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** — Local offline neural TTS (on-device, no network)
 - **[Edge TTS](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/index-text-to-speech)** — Free neural TTS (default)
 - **[Google Cloud TTS](https://cloud.google.com/text-to-speech)** — Chirp 3 HD (near-human quality)

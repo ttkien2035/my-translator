@@ -1,11 +1,12 @@
 mod audio;
 mod commands;
+mod local;
 mod settings;
 
 use audio::microphone::MicCapture;
 use audio::SystemAudioCapture;
 use commands::audio::AudioState;
-use commands::local_pipeline::LocalPipelineState;
+use local::LocalState;
 use commands::local_tts::LocalTtsState;
 use commands::openai_realtime::OpenAiState;
 use commands::qwen_realtime::QwenState;
@@ -93,7 +94,7 @@ pub fn run() {
             microphone: Mutex::new(MicCapture::new()),
             active_receiver: Mutex::new(None),
         })
-        .manage(LocalPipelineState::default())
+        .manage(LocalState::default())
         .manage(LocalTtsState::default())
         .manage(OpenAiState::default())
         .manage(QwenState::default())
@@ -118,11 +119,11 @@ pub fn run() {
             commands::session_store::export_session_srt,
             commands::session_store::export_session_txt,
             commands::session_store::search_sessions,
-            commands::local_pipeline::start_local_pipeline,
-            commands::local_pipeline::send_audio_to_pipeline,
-            commands::local_pipeline::stop_local_pipeline,
-            commands::local_pipeline::check_mlx_setup,
-            commands::local_pipeline::run_mlx_setup,
+            local::local_start,
+            local::local_send_audio,
+            local::local_stop,
+            local::models::local_models_status,
+            local::models::local_models_download,
             commands::edge_tts::edge_tts_speak,
             commands::microsoft_tts::microsoft_list_voices,
             commands::google_free_tts::google_free_tts_speak,

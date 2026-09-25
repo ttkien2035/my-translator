@@ -149,6 +149,8 @@ pub struct Settings {
     pub llm_base_url: String,
     pub llm_api_key: String,
     pub llm_model: String,
+    /// Local engine: custom GGUF path overriding the bundled Qwen download.
+    pub local_llm_gguf: String,
 
     // ── Microphone chain (Settings → Micro) ──
     /// macOS: capture via Apple's Voice-Processing I/O unit (system AEC/NS/AGC).
@@ -211,6 +213,7 @@ impl Default for Settings {
             llm_base_url: String::new(),
             llm_api_key: String::new(),
             llm_model: String::new(),
+            local_llm_gguf: String::new(),
             mic_voice_processing: false,
             mic_highpass: true,
             mic_agc: true,

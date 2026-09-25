@@ -85,6 +85,20 @@ Commit B tách hai phần để U6 revert riêng được: **B1** = U2, U3, U1, 
 5. Bo góc card 10–12 px, control 28 px theo HIG.
 6. **Đề xuất, cần Kiên duyệt:** HIG khuyên không đặt nút điều khiển ở đáy cửa sổ. Chuyển ▶ Bắt đầu / TTS / ⋯ lên nhóm cuối của toolbar, bỏ hàng nút dưới đáy.
 
+### Trạng thái B2 — mục 1–5 đã làm; mục 6 chờ Kiên duyệt
+
+- **Nền đặc:** bảng màu tối kiểu macOS, cửa sổ `#1e1e1e`, toolbar `#2a2a2c`, accent `#0a84ff`; xanh/vàng/đỏ theo màu hệ thống; `color-scheme: dark`. Ba view toàn cửa sổ bỏ bo góc 14 px + viền + bóng (di sản cửa sổ không viền; giờ macOS tự bo góc).
+- **Bỏ:** 11 dòng `backdrop-filter`; animation của nút ghi âm, con trỏ nhấp nháy, badge cập nhật; sóng "đang nghe" (giờ là cột tĩnh) cùng các `@keyframes` không còn dùng. Giữ các animation ngắn (đang kết nối, thanh tải, kiểm tra cập nhật). Có `prefers-reduced-motion`.
+- **Hành vi gốc:**
+  - Con trỏ mũi tên ở mọi nơi (34 chỗ), bàn tay chỉ cho link.
+  - Không chọn được chữ trên chrome (`-webkit-user-select`, WebKit 16); chọn được trong transcript, ghi chú, buổi đã lưu và ô nhập.
+  - Bỏ 14 rule `::-webkit-scrollbar`, dùng thanh cuộn overlay gốc.
+  - Vòng focus chỉ khi dùng bàn phím (`:focus-visible`).
+  - `overscroll-behavior: none`.
+  - Menu chuột phải của trình duyệt bị chặn trên chrome, giữ trong vùng chữ.
+
+**QA đo B2 (so với B1):** CPU của tiến trình WebView khi đang dịch liên tục và khi chờ câu đầu. Mục tiêu: chờ câu đầu ≈ 0 % (trước B2 có animation sóng và nút đỏ nhấp nháy). Chụp màn hình khi Settings › Accessibility › Display › *Reduce motion* bật.
+
 ### Commit C — transcript trực tiếp vẽ tăng dần (mới)
 
 Hiện mỗi token dựng lại HTML toàn vùng transcript, và vùng này bị cắt còn ~800 ký tự. Trong cửa sổ thường 1000×680 vì vậy chỉ thấy vài câu cuối, không cuộn lên được. `TranscriptUI.sessionLog` giữ mọi câu mà không ai đọc (rò rỉ bộ nhớ, và quét tuyến tính mỗi câu).

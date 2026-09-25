@@ -59,6 +59,14 @@ import { QWEN_LANGS } from './qwen-langs.js';
 // room for the native traffic lights (see main.css "macOS window chrome").
 if (navigator.userAgent.includes('Mac OS X')) document.documentElement.classList.add('platform-macos');
 
+// No browser context menu (Reload / Inspect Element) on app chrome — only
+// where text lives, so Copy/Paste/Look Up keep working there.
+document.addEventListener('contextmenu', (e) => {
+    if (!e.target.closest('input, textarea, [contenteditable], #transcript-content, #session-viewer-content')) {
+        e.preventDefault();
+    }
+});
+
 import { initShell, setActivity, getActivity, setLiveBadge, bindMenu, initWindowModes, startAutoHideWatch, stopAutoHideWatch, toggleManualCompact, isAutoHideEnabled, setAutoHideEnabled, getWindowMode } from './ui-shell.js';
 
 const { invoke, Channel } = window.__TAURI__.core;

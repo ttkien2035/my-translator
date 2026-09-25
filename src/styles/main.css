@@ -2641,3 +2641,37 @@ body.expanded #library-panel { padding: 8px 6%; }
 /* Course profile bar (Settings › Engine dịch › Hồ sơ môn học) */
 .input-group select { flex: 1; min-width: 0; }
 #select-live-profile { max-width: 140px; }
+
+/* ─── Notes pane (Live › 📝 Ghi chú) ──────────────────────────────────── */
+.notes-pane {
+  flex: 0 0 34%;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
+}
+.notes-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 2px 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.notes-title { font-weight: 600; color: #e2e8f0; }
+.notes-hint { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#notes-text {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f1f5f9;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 4px 16px 8px;
+}
+.seg-mark { margin-right: 4px; }

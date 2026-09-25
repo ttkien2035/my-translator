@@ -20,6 +20,9 @@ pub struct Segment {
     pub ts: String, // "HH:MM:SS"
     pub src: String,
     pub tgt: String,
+    /// Student marker: "⭐" (important) | "❓" (unclear) | "📝" (on the exam).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mark: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -40,6 +43,9 @@ pub struct SessionData {
     pub target_lang: String,
     pub duration_sec: u64,
     pub chunks: Vec<Chunk>,
+    /// Free-form notes typed during the session (Live › 📝 Ghi chú).
+    #[serde(default)]
+    pub notes: String,
 }
 
 #[derive(Serialize, Debug)]

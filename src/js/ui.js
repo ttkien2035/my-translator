@@ -137,6 +137,18 @@ export class TranscriptUI {
         this._render();
     }
 
+    /** Set (or clear with null) the marker shown on the latest translated segment. */
+    markLast(mark) {
+        for (let i = this.segments.length - 1; i >= 0; i--) {
+            const seg = this.segments[i];
+            if (seg.status === 'translated' && seg.translation) {
+                if (mark) seg.mark = mark; else delete seg.mark;
+                this._render();
+                return;
+            }
+        }
+    }
+
     /**
      * Update provisional (in-progress) text
      */
@@ -430,8 +442,9 @@ export class TranscriptUI {
 
             if (seg.status === 'translated' && seg.translation) {
                 const confidenceClass = (seg.confidence !== null && seg.confidence < 0.7) ? ' low-confidence' : '';
+                const mark = seg.mark ? `<span class="seg-mark">${this._esc(seg.mark)}</span>` : '';
                 html += `<div class="seg-block">`;
-                html += `<div class="seg-translated${confidenceClass}">${this._esc(seg.translation)}</div>`;
+                html += `<div class="seg-translated${confidenceClass}">${mark}${this._esc(seg.translation)}</div>`;
                 html += `</div>`;
             }
             // Skip 'original' segments in single mode — wait for translation
@@ -491,10 +504,11 @@ export class TranscriptUI {
 
             if (seg.status === 'translated' && seg.translation) {
                 const confidenceClass = (seg.confidence !== null && seg.confidence < 0.7) ? ' low-confidence' : '';
+                const mark = seg.mark ? `<span class="seg-mark">${this._esc(seg.mark)}</span>` : '';
                 srcHtml += speakerHtml + langHtml;
                 srcHtml += `<div class="seg-text">${this._esc(seg.original || '')}</div>`;
                 tgtHtml += speakerHtml ? '<div class="speaker-label">&nbsp;</div>' : '';
-                tgtHtml += `<div class="seg-text${confidenceClass}">${this._esc(seg.translation)}</div>`;
+                tgtHtml += `<div class="seg-text${confidenceClass}">${mark}${this._esc(seg.translation)}</div>`;
             } else if (seg.status === 'original' && seg.original) {
                 srcHtml += speakerHtml + langHtml;
                 srcHtml += `<div class="seg-text pending">${this._esc(seg.original)}</div>`;

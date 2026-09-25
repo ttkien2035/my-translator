@@ -116,6 +116,16 @@
         </div>
       </div>
 
+      <!-- Notes pane (⌘⇧N): the student's own notes, saved with the session -->
+      <div id="notes-pane" class="notes-pane" style="display:none">
+        <div class="notes-toolbar">
+          <span class="notes-title">📝 Ghi chú</span>
+          <span class="notes-hint">⌘⇧C chép câu vừa dịch · ⌘⇧1 ⭐ · ⌘⇧2 ❓ · ⌘⇧3 📝 sẽ thi</span>
+          <button id="btn-notes-close" class="icon-btn small" type="button" title="Đóng (⌘⇧N)">×</button>
+        </div>
+        <textarea id="notes-text" placeholder="Ghi chú của bạn… (tự lưu cùng phiên, xuất ra Markdown)"></textarea>
+      </div>
+
       <!-- Live action row: primary start/stop + pause + TTS + overflow menu -->
       <div class="live-action-row">
         <button id="btn-start" class="primary-action-btn" title="Start/Stop (⌘↩)">
@@ -154,6 +164,7 @@
             </svg>
           </button>
           <div id="more-menu" class="more-menu" style="display:none">
+            <button id="btn-notes" class="more-menu-item" type="button">📝 Ghi chú (⌘⇧N)</button>
             <button id="btn-copy" class="more-menu-item" type="button">📋 Copy transcript</button>
             <button id="btn-clear" class="more-menu-item" type="button">🗑 Xóa transcript</button>
             <div class="more-menu-sep"></div>
@@ -1141,6 +1152,9 @@
         <tr><td><kbd>⌘↩</kbd></td><td>Bắt đầu / Dừng dịch</td></tr>
         <tr><td><kbd>⌘1</kbd> / <kbd>⌘2</kbd> / <kbd>⌘3</kbd></td><td>Nguồn: System / Mic / Cả hai</td></tr>
         <tr><td><kbd>⌘T</kbd></td><td>Bật/tắt đọc bản dịch (TTS)</td></tr>
+        <tr><td><kbd>⌘⇧N</kbd></td><td>Mở/đóng khung ghi chú</td></tr>
+        <tr><td><kbd>⌘⇧C</kbd></td><td>Chép câu vừa dịch vào ghi chú (kèm giờ)</td></tr>
+        <tr><td><kbd>⌘⇧1</kbd> / <kbd>⌘⇧2</kbd> / <kbd>⌘⇧3</kbd></td><td>Đánh dấu câu vừa dịch: ⭐ quan trọng / ❓ chưa hiểu / 📝 sẽ thi</td></tr>
         <tr><td><kbd>⌘,</kbd></td><td>Mở Cài đặt</td></tr>
         <tr><td><kbd>⌘P</kbd></td><td>Ghim cửa sổ nổi</td></tr>
         <tr><td><kbd>⌘D</kbd></td><td>Compact — ẩn thanh công cụ</td></tr>

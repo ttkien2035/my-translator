@@ -22,6 +22,7 @@ export class SessionStore {
         this.targetLang = '';
         this.chunks = [];
         this.currentChunk = null;
+        this.notes = '';               // student's free-form notes for this session
         // Dirty tracking via a monotonic mutation counter: the store is "dirty"
         // whenever _mutations !== _persistedMutations. A segment arriving while a
         // persist is in flight bumps _mutations past the captured generation, so
@@ -46,6 +47,7 @@ export class SessionStore {
         this.targetLang = targetLang || '';
         this.chunks = [];
         this.currentChunk = null;
+        this.notes = '';
         this._mutations = 0;
         this._persistedMutations = 0;
         this._persistChain = Promise.resolve();
@@ -65,7 +67,41 @@ export class SessionStore {
         s.targetLang = j.target_lang || '';
         s.chunks = j.chunks || [];
         s.currentChunk = null;
+        s.notes = j.notes || '';
         return s;
+    }
+
+    /** Replace the notes text (debounced by the caller); autosaves like a segment. */
+    setNotes(text) {
+        const t = text ?? '';
+        if (t === this.notes) return;
+        this.notes = t;
+        this._mutations++;
+        this._scheduleAutosave();
+    }
+
+    /** Most recent segment (live chunk first, then closed chunks), or null. */
+    lastSegment() {
+        const live = this.currentChunk?.segments;
+        if (live && live.length) return live[live.length - 1];
+        for (let i = this.chunks.length - 1; i >= 0; i--) {
+            const segs = this.chunks[i].segments;
+            if (segs.length) return segs[segs.length - 1];
+        }
+        return null;
+    }
+
+    /**
+     * Toggle a marker ('⭐' | '❓' | '📝') on the most recent segment.
+     * Returns the segment (with its new `mark`, undefined when cleared) or null.
+     */
+    markLastSegment(mark) {
+        const seg = this.lastSegment();
+        if (!seg) return null;
+        if (seg.mark === mark) delete seg.mark; else seg.mark = mark;
+        this._mutations++;
+        this._scheduleAutosave();
+        return seg;
     }
 
     beginChunk({ engine, sourceLang, targetLang } = {}) {
@@ -114,7 +150,9 @@ export class SessionStore {
     }
 
     async _persistNow() {
-        if (this._mutations === this._persistedMutations || this.totalSegmentCount() === 0) {
+        // Nothing to write: clean, or an empty session without even notes.
+        if (this._mutations === this._persistedMutations
+            || (this.totalSegmentCount() === 0 && !this.notes.trim())) {
             return 'skipped';
         }
         const gen = this._mutations;
@@ -261,6 +299,7 @@ export class SessionStore {
             target_lang: this.targetLang || '',
             duration_sec: this._totalDurationSec(),
             chunks: this._allChunks(),
+            notes: this.notes || '',
         };
     }
 
@@ -308,14 +347,30 @@ export class SessionStore {
             lines.push(`## Chunk ${i + 1} — ${startStr} – ${endStr}`);
             lines.push('');
             for (const seg of chunk.segments) {
+                const mark = seg.mark ? `${seg.mark} ` : '';
                 if (seg.src) {
-                    lines.push(`[${seg.ts}] ${seg.src}`);
+                    lines.push(`[${seg.ts}] ${mark}${seg.src}`);
                     lines.push(`→ ${seg.tgt}`);
                 } else {
-                    lines.push(`[${seg.ts}] ${seg.tgt}`);
+                    lines.push(`[${seg.ts}] ${mark}${seg.tgt}`);
                 }
                 lines.push('');
             }
+        }
+
+        // Review helpers: everything the student flagged, then their own notes.
+        const marked = all.flatMap(c => c.segments.filter(s => s.mark));
+        if (marked.length) {
+            lines.push('## Đánh dấu');
+            lines.push('');
+            for (const seg of marked) lines.push(`- ${seg.mark} [${seg.ts}] ${seg.tgt}`);
+            lines.push('');
+        }
+        if (this.notes && this.notes.trim()) {
+            lines.push('## Ghi chú');
+            lines.push('');
+            lines.push(this.notes.trimEnd());
+            lines.push('');
         }
         return lines.join('\n');
     }

@@ -431,6 +431,7 @@ class App {
         this._bindModelTab();
         this._bindMicTab();
         this._bindProfileUi();
+        this._bindNotes();
 
         // Welcome-screen engine cards: pick a class (standard / openai),
         // remember it, hide the picker, sync the rest of the UI.
@@ -629,6 +630,7 @@ class App {
             this.transcriptUI.addTranslation(text);
             const src = this._sonioxOriginalQueue.shift() || '';
             sessionStore.addSegment(src, text);
+            this._autoMarkExam(src);
             this._speakIfEnabled(text);
         };
 
@@ -663,6 +665,16 @@ class App {
 
     _bindKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
+            // Note-taking shortcuts come first: they must work while typing in
+            // the notes pane. Digits use e.code so ⇧ doesn't turn '1' into '!'.
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey) {
+                const key = e.key.toLowerCase();
+                if (key === 'n') { e.preventDefault(); this._toggleNotes(); return; }
+                if (key === 'c') { e.preventDefault(); this._noteLastTranslation(); return; }
+                const markByCode = { Digit1: '⭐', Digit2: '❓', Digit3: '📝' };
+                if (markByCode[e.code]) { e.preventDefault(); this._markLast(markByCode[e.code]); return; }
+            }
+
             // Ignore when typing in input fields (SELECT: keep native typeahead)
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
                 return;
@@ -2080,7 +2092,7 @@ class App {
         // Overflow menu (⋯) in the Live action row
         this._moreMenu = bindMenu('btn-more', 'more-menu');
         // Menu items that navigate/close: shut the menu after action
-        ['btn-copy', 'btn-clear', 'btn-compact', 'btn-shortcuts'].forEach((id) => {
+        ['btn-copy', 'btn-clear', 'btn-compact', 'btn-shortcuts', 'btn-notes'].forEach((id) => {
             document.getElementById(id)?.addEventListener('click', () => this._moreMenu.close());
         });
         // Shortcut sheet (⋯ menu + `?` key; Esc/click-outside closes)
@@ -2864,6 +2876,7 @@ class App {
             // Atomic write to session store — bypass UI's loose FIFO since
             // OpenAI gives us both texts in one event.
             sessionStore.addSegment(sourceText || '', translatedText || '');
+            this._autoMarkExam(sourceText || '');
             this.transcriptUI.clearSourceProvisional?.();
             this.transcriptUI.clearProvisional();
         };
@@ -3181,6 +3194,7 @@ class App {
                 // Persist atomically — Local pipeline gives both texts in
                 // one event so we don't need FIFO pairing.
                 sessionStore.addSegment(data.original || '', data.translated || '');
+                this._autoMarkExam(data.original || '');
                 break;
             case 'status':
                 const msg = data.message || 'Loading...';
@@ -3424,6 +3438,7 @@ class App {
             sourceLang: settings.source_language || 'auto',
             targetLang: settings.target_language || 'vi',
         });
+        this._syncNotesFromStore(); // new session → empty notes pane
     }
 
     _sleep(ms) {
@@ -3523,6 +3538,95 @@ class App {
     }
 
     // ─── Status ────────────────────────────────────────────
+
+    // ─── Notes & markers (Live › 📝 Ghi chú) ────────────────
+    // Free-form notes live in the SessionStore (autosaved, exported to the
+    // session Markdown) and markers ⭐ ❓ 📝 sit on individual segments.
+
+    _bindNotes() {
+        document.getElementById('btn-notes')?.addEventListener('click', () => this._toggleNotes());
+        document.getElementById('btn-notes-close')?.addEventListener('click', () => this._toggleNotes(false));
+        const ta = document.getElementById('notes-text');
+        if (ta) {
+            // Debounce so autosave isn't bumped on every keystroke.
+            let timer = null;
+            ta.addEventListener('input', () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => sessionStore.setNotes(ta.value), 800);
+            });
+            ta.addEventListener('blur', () => {
+                clearTimeout(timer);
+                sessionStore.setNotes(ta.value);
+            });
+        }
+    }
+
+    _toggleNotes(show) {
+        const pane = document.getElementById('notes-pane');
+        if (!pane) return;
+        const visible = pane.style.display !== 'none';
+        const next = show ?? !visible;
+        pane.style.display = next ? '' : 'none';
+        if (next) {
+            this._syncNotesFromStore();
+            document.getElementById('notes-text')?.focus();
+        }
+    }
+
+    _syncNotesFromStore() {
+        const ta = document.getElementById('notes-text');
+        if (ta && ta.value !== (sessionStore.notes || '')) ta.value = sessionStore.notes || '';
+    }
+
+    /** Append one line to the notes (opens the pane so the user sees it land). */
+    _appendNote(line) {
+        const cur = sessionStore.notes || '';
+        const next = (cur && !cur.endsWith('\n') ? cur + '\n' : cur) + line + '\n';
+        sessionStore.setNotes(next);
+        this._toggleNotes(true);
+        const ta = document.getElementById('notes-text');
+        if (ta) {
+            ta.value = next;
+            ta.scrollTop = ta.scrollHeight;
+        }
+    }
+
+    _noteLastTranslation() {
+        const seg = sessionStore.lastSegment();
+        if (!seg) {
+            this._showToast('Chưa có câu nào để chép', 'error');
+            return;
+        }
+        this._appendNote(`[${seg.ts}] ${seg.tgt}${seg.src ? `  （${seg.src}）` : ''}`);
+    }
+
+    /** Toggle a marker on the latest segment; a set marker also lands in the notes. */
+    _markLast(mark) {
+        const seg = sessionStore.markLastSegment(mark);
+        if (!seg) {
+            this._showToast('Chưa có câu nào để đánh dấu', 'error');
+            return;
+        }
+        this.transcriptUI?.markLast?.(seg.mark || null);
+        if (seg.mark) {
+            this._appendNote(`[${seg.ts}] ${seg.mark} ${seg.tgt}`);
+        } else {
+            this._showToast('Đã bỏ đánh dấu', 'success');
+        }
+    }
+
+    /**
+     * Lecturers flag exam material verbally ("这个考试会考", "这是考点"…).
+     * Mark such segments 📝 automatically so they're easy to find later.
+     */
+    _autoMarkExam(src) {
+        if (!src || !/(考试会考|会考|要考|考点|期末考|期中考|必考)/.test(src)) return;
+        const seg = sessionStore.lastSegment();
+        if (!seg || seg.mark) return;
+        sessionStore.markLastSegment('📝');
+        this.transcriptUI?.markLast?.('📝');
+        this._showToast('📝 Giảng viên báo: phần này sẽ thi', 'success');
+    }
 
     /**
      * The engine fell behind live audio (network stall, or Local MLX slower

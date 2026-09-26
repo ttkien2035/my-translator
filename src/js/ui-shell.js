@@ -143,6 +143,7 @@ export function bindMenu(triggerId, menuId) {
         if (isOpen() && !menu.contains(e.target)) close();
     });
     document.addEventListener('keydown', (e) => {
+        if (e.isComposing || e.keyCode === 229) return; // Escape cancels the IME composition, not the menu
         if (e.key === 'Escape' && isOpen()) close();
     });
     return { close };

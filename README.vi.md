@@ -272,6 +272,7 @@ Tất cả ở trên máy bạn. Chỉ engine cloud bạn chọn nhận âm than
 | Qwen báo `WebSocket error` ngay khi Start | Key DashScope phải tạo ở region **Singapore** (endpoint quốc tế) |
 | Toast "⏩ Mạng chậm" liên tục | Wi-Fi yếu: chuyển sang Qwen (không cần VPN) hoặc Local (offline) |
 | Local: "cần tải model" | Cài đặt › Model › Local › **Tải model**; cần ~1,6 GB trống |
+| Terminal in `getApplicationProperty: called with invalid property` / `error messaging the mach port for IMKCFRunLoopWakeUpReliable` khi gõ chữ | Nhiễu từ Input Method Kit của macOS khi đang dùng bộ gõ (ví dụ Telex tiếng Việt); Electron, Qt, Java cũng in y như vậy, vô hại. App không sửa được và không cần sửa. |
 | Local dịch sót vài chữ Hán | Giới hạn của model 3B; trỏ **GGUF tuỳ chỉnh** tới bản 7B nếu máy đủ RAM (≥16 GB) |
 | Khử ồn làm nhận dạng kém hơn | Tắt "Khử tiếng ồn nền" (hoặc thử Apple Voice Processing thay thế) |
 | Build lần đầu rất lâu | llama.cpp đang được biên dịch; chỉ lần đầu. Cần `cmake` + `clang` |

@@ -277,3 +277,11 @@ Số liệu đầy đủ: README › *Kết quả đo model Local* (10 model nh�
 - `src/js/glossary/finance-advanced-zh-vi.js` (mới): ~170 thuật ngữ bậc thạc sĩ + bộ CUFE (中央财经大学: học viện, cơ sở, từ vựng sau đại học). Tên học viện viết theo hiểu biết, trang cufe.edu.cn trả 404 lúc kiểm — Kiên đối chiếu giúp.
 - `src/js/glossary/index.js` (mới): gộp 3 bộ, khử trùng; `budgetContext()` cắt `terms`/`translation_terms` cho vừa 6 800 token (bằng cỡ từ điển 278 mục cũ đã chạy thật; chừa ~1 200 cho `general` + carryover 500 ký tự): 35 % cho từ nhận dạng (~5 token/từ, giữ đủ cả 406 từ ≥ 3 chữ), phần còn lại cho cặp dịch dài nhất (~20 token/cặp → 213 cặp, từ 4 chữ Hán trở lên). Ước lượng token: 1/chữ Hán, 1/2,5 ký tự tiếng Việt. Soniox nhận `budgetContext()` thay cho cắt theo số lượng cũ (300/500). Nút "Nạp từ điển" nạp cả 3 bộ; chỉ thuật ngữ ≥ 3 chữ Hán vào `terms`.
 - Test: `npm run test:js` (node --test). QA: sau khi nạp từ điển, mở Soniox và kiểm console không có lỗi context quá lớn; bấm nạp lần hai phải báo "đã có đủ".
+
+---
+
+### Bug IMK log spam (`qa-reports/2026-09-26-bug-imk-log-spam.md`) — đã xử lý (kỹ sư trưởng, 2026-09-26)
+
+- **Log:** `IMKCFRunLoopWakeUpReliable` / `getApplicationProperty: called with invalid property` là nhiễu của Input Method Kit macOS khi có bộ gõ hoạt động; Electron (issue #45002), Qt và các app Java báo y như vậy, bản `.app` cũng in, không tắt được từ phía app. Đã ghi vào README › Troubleshooting (Anh/Việt). Không cần Kiên thử (a)/(b)/(c) nữa.
+- **Chức năng (mục 3–4 của QA):** rà JS: handler phím tắt toàn cục (`app.js`), ô tên hồ sơ (Enter xác nhận) và menu ⋯ (Escape đóng) chưa bỏ qua sự kiện khi bộ gõ đang ghép chữ. Nay cả ba bỏ qua khi `e.isComposing || e.keyCode === 229`. Các handler còn lại vốn đã bỏ qua khi tiêu điểm nằm trong INPUT/TEXTAREA. Không có chỗ nào ghi `textarea.value` trong lúc gõ (chỉ khi bấm ⌘⇧C).
+- **QA/Kiên kiểm trên Mac (tiêu chí đóng bug):** gõ "Tiếng Việt có dấu đầy đủ" bằng Simple Telex vào ô ghi chú (⌘⇧N), ô ghi chú ôn bài và ô tên hồ sơ (kết thúc bằng Enter): chữ đúng, không lặp, không mất dấu, không có chữ gạch chân kẹt lại. Nếu vẫn lỗi, ghi rõ ô nào và chuỗi gõ.

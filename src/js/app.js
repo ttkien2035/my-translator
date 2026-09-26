@@ -656,6 +656,11 @@ class App {
 
     _bindKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
+            // While an input method is composing (Vietnamese Telex, Chinese
+            // pinyin) Enter/Escape/letters belong to the IME; keyCode 229 is
+            // the legacy "in composition" value WebKit still sends.
+            if (e.isComposing || e.keyCode === 229) return;
+
             // Note-taking shortcuts come first: they must work while typing in
             // the notes pane. Digits use e.code so ⇧ doesn't turn '1' into '!'.
             if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey) {
@@ -1571,6 +1576,7 @@ class App {
         document.getElementById('btn-profile-name-ok')?.addEventListener('click', () => this._confirmProfileName());
         document.getElementById('btn-profile-name-cancel')?.addEventListener('click', () => this._closeProfileNameEditor());
         document.getElementById('input-profile-name')?.addEventListener('keydown', (e) => {
+            if (e.isComposing || e.keyCode === 229) return; // Enter commits the IME candidate, not the name
             if (e.key === 'Enter') { e.preventDefault(); this._confirmProfileName(); }
             if (e.key === 'Escape') { e.preventDefault(); this._closeProfileNameEditor(); }
         });

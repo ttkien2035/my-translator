@@ -294,6 +294,7 @@ Everything stays on your machine. Only the cloud engine you choose receives audi
 | Qwen `WebSocket error` right after Start | The DashScope key must be created in the **Singapore** region (international endpoint) |
 | "⏩ Mạng chậm" (slow network) toasts keep appearing | Weak Wi-Fi: switch to Qwen (no VPN needed) or Local (offline) |
 | Local says models are needed | Cài đặt › Model › Local › **Tải model**; needs ~1.6 GB free |
+| Terminal shows `getApplicationProperty: called with invalid property` / `error messaging the mach port for IMKCFRunLoopWakeUpReliable` while typing | Noise from macOS's Input Method Kit when an input method (e.g. Vietnamese Telex) is active; it appears in Electron, Qt and Java apps too and is harmless. Nothing to fix in the app. |
 | Local leaves a few Chinese characters untranslated | A limit of the 3B model; point **custom GGUF** at a 7B model if you have ≥16 GB RAM |
 | Noise suppression makes recognition worse | Turn it off, or try Apple Voice Processing instead |
 | The first build takes very long | llama.cpp is compiling; first time only. Needs `cmake` + `clang` |

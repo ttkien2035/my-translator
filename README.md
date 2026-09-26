@@ -92,7 +92,7 @@ Each engine's model name can be changed in **Cài đặt › Model** (Settings �
 
 **Requirements:** macOS 13 or later. Apple silicon (M1–M4) works best; Intel works too (Local is slower).
 
-1. Open **[Releases](https://github.com/ttkien2035/my-translator/releases/latest)** and download the right file:
+1. Open **[Releases](https://github.com/ttkien2035/meowlaoshi/releases/latest)** and download the right file:
 
    | Your machine | File |
    |---|---|
@@ -181,14 +181,14 @@ CMake and clang are needed for llama.cpp (the Local engine). It compiles **once*
 ### Run a development build
 
 ```bash
-git clone https://github.com/ttkien2035/my-translator.git
-cd my-translator
+git clone https://github.com/ttkien2035/meowlaoshi.git
+cd meowlaoshi
 npm install
 cp .env.example .env          # optional; empty is fine
 npm run dev                   # opens the app with DevTools; UI hot-reloads
 ```
 
-With `APP_IDENTIFIER=com.personal.translator.dev` in `.env`, `npm run dev` gets its own Microphone/Screen Recording permissions and leaves the installed app alone.
+With `APP_IDENTIFIER=com.ttkien2035.meowlaoshi.dev` in `.env`, `npm run dev` gets its own Microphone/Screen Recording permissions and leaves the installed app alone.
 
 ### Checks & tests
 
@@ -279,9 +279,9 @@ Installed copies see the new version under **Cài đặt › Giới thiệu › 
 
 | What | macOS | Windows |
 |---|---|---|
-| Settings (API keys, course profiles, glossaries) | `~/Library/Application Support/com.personal.translator/settings.json` (+ `.bak`) | `%APPDATA%\com.personal.translator\settings.json` |
-| Sessions (Markdown + JSON) | `~/Library/Application Support/com.personal.translator/transcripts/` | `%APPDATA%\com.personal.translator\transcripts\` |
-| Noise/VAD models, Local models, Piper voices (folder keeps the pre-rename name) | `~/Library/Application Support/My Translator/{audio-models,local-models,…}` | `%APPDATA%\My Translator\…` |
+| Settings (API keys, course profiles, glossaries) | `~/Library/Application Support/com.ttkien2035.meowlaoshi/settings.json` (+ `.bak`) | `%APPDATA%\com.ttkien2035.meowlaoshi\settings.json` |
+| Sessions (Markdown + JSON) | `~/Library/Application Support/com.ttkien2035.meowlaoshi/transcripts/` | `%APPDATA%\com.ttkien2035.meowlaoshi\transcripts\` |
+| Noise/VAD models, Local models, Piper voices | `~/Library/Application Support/com.ttkien2035.meowlaoshi/{audio-models,local-models,piper-models}` | `%APPDATA%\com.ttkien2035.meowlaoshi\…` |
 
 Everything stays on your machine. Only the cloud engine you choose receives audio; there is no intermediate server.
 
@@ -406,4 +406,4 @@ scripts/tauri-with-env.mjs dev/build wrapper (.env, ad-hoc signing, skips update
 
 ## Credits & license
 
-Lecture Edition by **ttkien2035**. Based on [My Translator](https://github.com/phuc-nt/my-translator) by Nguyễn Trọng Phúc — MIT License. The changes in this fork are MIT as well. Models: [X-ASR](https://github.com/Gilgamesh-J/X-ASR) (SJTU et al., Apache-2.0), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — each under its own license.
+MeowLaoshi by **ttkien2035**. Based on [My Translator](https://github.com/phuc-nt/my-translator) by Nguyễn Trọng Phúc. As the MIT License requires, the original copyright and license notice are kept in [LICENSE](LICENSE); this fork's changes are MIT as well. App icon: [Noto Emoji](https://github.com/googlefonts/noto-emoji) "cat face" (Google, Apache-2.0; source in `src-tauri/icons/source/`). Models: [X-ASR](https://github.com/Gilgamesh-J/X-ASR) (SJTU et al., Apache-2.0), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — each under its own license.

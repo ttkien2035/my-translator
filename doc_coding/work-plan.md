@@ -293,3 +293,14 @@ Số liệu đầy đủ: README › *Kết quả đo model Local* (10 model nh�
 - Đổi: `productName` và tiêu đề cửa sổ (`tauri.conf.json`), `<title>`, mục Giới thiệu, hộp thoại xác nhận, README (Anh/Việt), changelog v1.0.0, hướng dẫn cài đặt (Markdown + PDF), hướng dẫn TTS. File build tự đổi theo: `MeowLaoshi_1.0.0_aarch64.dmg`, `/Applications/MeowLaoshi.app`, bản dev là "MeowLaoshi Dev".
 - **Giữ nguyên có chủ đích** (để không mất dữ liệu và không hỏng cập nhật): `identifier` `com.personal.translator` (settings, API key, hồ sơ, buổi học, localStorage của WebView), thư mục model `~/Library/Application Support/My Translator` (có chú thích trong `commands/mod.rs`), repo GitHub `ttkien2035/my-translator` (endpoint updater), tên gói Cargo/npm `my-translator`, dòng ghi công bản gốc (MIT).
 - QA trên Mac: build lại, kiểm tên app trong Dock/Finder/menu, mục Giới thiệu; app đã có dữ liệu từ bản cũ vẫn thấy API key, hồ sơ, buổi học và model đã tải (không phải tải lại). Quyền Micro có thể phải cấp lại vì tên bundle đổi.
+
+### MeowLaoshi — icon, mã định danh, thư mục dữ liệu, repo (kỹ sư trưởng, 2026-09-26; Kiên quyết định "coi như app mới hoàn toàn")
+
+Thay cho mục "Giữ nguyên có chủ đích" ở trên.
+
+- **Icon:** emoji 🐱 "cat face" của Noto Emoji (Google, Apache-2.0), dựng từ bản vector gốc (`src-tauri/icons/source/`) trên nền bo góc xanh trời theo lưới icon macOS (1024, ô 824), để macOS 26+ không bọc khung xám. `python3 scripts/build-icon.py [sky|cream|mint|ink]` dựng lại toàn bộ cỡ (`.icns` tới 512@2x, `.ico`, PNG). File tham khảo `cat_face_emoji.jpg` đã bỏ.
+- **Mã định danh:** `com.ttkien2035.meowlaoshi` — một hằng số `APP_ID` (`lib.rs`), test `app_id_matches_tauri_config` bắt lệch với `tauri.conf.json`.
+- **Một thư mục dữ liệu duy nhất:** `~/Library/Application Support/com.ttkien2035.meowlaoshi/` chứa `settings.json`, `transcripts/`, `audio-models/`, `local-models/`, `piper-models/`. Không chuyển dữ liệu từ bản cũ: cài lại là app mới (dán lại key, nạp lại từ điển, tải lại model).
+- **Repo:** URL trong app/updater/workflow/README trỏ sang `github.com/ttkien2035/meowlaoshi`. Kiên đổi tên repo trên GitHub (Settings › General › Repository name). GitHub tự chuyển hướng URL cũ.
+- **Ghi công:** giữ dòng bản quyền gốc trong `LICENSE` theo yêu cầu của giấy phép MIT; README và mục Giới thiệu ghi rõ điều đó, kèm ghi công icon Noto.
+- **QA trên Mac:** build lại; icon mèo hiện đúng trong Dock/Finder/Launchpad (không có khung xám); app mở như lần đầu (hộp chọn cách dịch); dữ liệu nằm trong thư mục mới. Thư mục cũ có thể xoá tay: `~/Library/Application Support/com.personal.translator`, `~/Library/Application Support/My Translator`, `~/Library/WebKit/com.personal.translator`.

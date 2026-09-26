@@ -3828,11 +3828,11 @@ class App {
         // GitHub links
         document.getElementById('link-github')?.addEventListener('click', (e) => {
             e.preventDefault();
-            window.__TAURI__?.opener?.openUrl('https://github.com/ttkien2035/my-translator');
+            window.__TAURI__?.opener?.openUrl('https://github.com/ttkien2035/meowlaoshi');
         });
         document.getElementById('link-issues')?.addEventListener('click', (e) => {
             e.preventDefault();
-            window.__TAURI__?.opener?.openUrl('https://github.com/ttkien2035/my-translator/issues');
+            window.__TAURI__?.opener?.openUrl('https://github.com/ttkien2035/meowlaoshi/issues');
         });
 
         // Check for Updates button

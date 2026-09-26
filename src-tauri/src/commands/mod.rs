@@ -24,13 +24,11 @@ pub(crate) fn session_id_from_headers(headers: &http::HeaderMap) -> Result<u64, 
         .ok_or_else(|| "missing or invalid x-session-id header".to_string())
 }
 
-/// Per-user app data dir: `~/Library/Application Support/My Translator` on
-/// macOS, `%APPDATA%\My Translator` on Windows, `~/.local/share/My Translator`
-/// on Linux. Holds the MLX venv, downloaded models and logs.
+/// Per-user app data dir, the same folder as settings and sessions:
+/// `~/Library/Application Support/<APP_ID>` on macOS, `%APPDATA%\<APP_ID>` on
+/// Windows, `~/.local/share/<APP_ID>` on Linux. Holds downloaded models.
 pub(crate) fn app_support_dir() -> std::path::PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
-        // The pre-rename name, kept on purpose: downloaded models live here and
-        // renaming the app (now MeowLaoshi) must not orphan them.
-        .join("My Translator")
+        .join(crate::APP_ID)
 }

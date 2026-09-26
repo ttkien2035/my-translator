@@ -249,13 +249,13 @@ fn default_local_tts_speed() -> f32 {
 /// Get the settings file path:
 /// `$MT_SETTINGS_DIR/settings.json` when that env var is set (tests/QA work
 /// in a scratch dir without touching real settings), otherwise
-/// ~/Library/Application Support/com.personal.translator/settings.json
+/// ~/Library/Application Support/<APP_ID>/settings.json
 fn settings_path() -> PathBuf {
     let dir = match std::env::var_os("MT_SETTINGS_DIR") {
         Some(d) if !d.is_empty() => PathBuf::from(d),
         _ => dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("com.personal.translator"),
+            .join(crate::APP_ID),
     };
     dir.join("settings.json")
 }
@@ -374,6 +374,14 @@ mod tests {
         // Explicit value round-trips.
         let explicit: Settings = serde_json::from_str(r#"{"engine_picker_done":false}"#).unwrap();
         assert!(!explicit.engine_picker_done);
+    }
+
+    #[test]
+    fn app_id_matches_tauri_config() {
+        // Settings/models live under APP_ID while Tauri derives sessions and
+        // WebView storage from tauri.conf.json: the two must never diverge.
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(conf["identifier"], crate::APP_ID);
     }
 
     #[test]

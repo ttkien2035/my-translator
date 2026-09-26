@@ -4,7 +4,7 @@ Hai máy, hai Claude Code session, một repo:
 
 | Máy | Vai trò | Đường dẫn repo |
 |---|---|---|
-| WSL2 (Ubuntu 24.04, `ttkien`) | **Kỹ sư trưởng**: thiết kế, viết code, commit | `/mnt/d/working/projects/my-translator` |
+| WSL2 (Ubuntu 24.04, `ttkien`) | **Kỹ sư trưởng**: thiết kế, viết code, commit | `/mnt/d/working/projects/my-translator` (repo GitHub: `ttkien2035/meowlaoshi`) |
 | MacBook (Apple Silicon) | **QA/QC**: build, chạy, kiểm thử trên macOS, feedback | `~/Documents/projects/my-translator` |
 
 Máy WSL chỉ `cargo check`/`clippy` được cho Linux. Mọi mã macOS-only

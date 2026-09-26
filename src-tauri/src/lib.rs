@@ -3,6 +3,12 @@ mod commands;
 mod local;
 mod settings;
 
+/// Bundle identifier, also the name of the one per-user folder that holds
+/// everything the app stores (settings, sessions, models, voices):
+/// `~/Library/Application Support/com.ttkien2035.meowlaoshi` on macOS.
+/// Must equal `identifier` in tauri.conf.json (checked by a test).
+pub(crate) const APP_ID: &str = "com.ttkien2035.meowlaoshi";
+
 /// Test seams for QA / integration tests (`src-tauri/tests/*.rs`), which can
 /// only reach public paths. Not an API for the app itself.
 #[doc(hidden)]

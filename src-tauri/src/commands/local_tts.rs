@@ -144,10 +144,10 @@ fn ensure_safe_id(id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Default models root: `<config>/com.personal.translator/piper-models`.
+/// Default models root: `<config>/<APP_ID>/piper-models`.
 fn default_models_root() -> PathBuf {
     let mut p = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    p.push("com.personal.translator");
+    p.push(crate::APP_ID);
     p.push("piper-models");
     p
 }

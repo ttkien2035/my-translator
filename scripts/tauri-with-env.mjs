@@ -4,7 +4,7 @@
  *
  * If the repo-root `.env` defines `APP_IDENTIFIER`, it is injected via
  * `--config {"identifier": "..."}` so the dev build can use a distinct id
- * (e.g. `com.personal.translator.dev`). This gives the dev build its OWN macOS
+ * (e.g. `com.ttkien2035.meowlaoshi.dev`). This gives the dev build its OWN macOS
  * Screen-Recording / Microphone permission entry, leaving the installed stable
  * app's permissions untouched. When `.env` has no `APP_IDENTIFIER`, the default
  * identifier from `tauri.conf.json` is used unchanged.

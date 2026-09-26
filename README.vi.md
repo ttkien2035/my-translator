@@ -87,7 +87,7 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 
 **Yêu cầu:** macOS 13 trở lên. Chip Apple (M1–M4) chạy tốt nhất; Intel dùng được (Local chậm hơn).
 
-1. Vào **[Releases](https://github.com/ttkien2035/my-translator/releases/latest)** và tải đúng file:
+1. Vào **[Releases](https://github.com/ttkien2035/meowlaoshi/releases/latest)** và tải đúng file:
 
    | Máy của bạn | File |
    |---|---|
@@ -166,14 +166,14 @@ CMake và clang cần cho llama.cpp (engine Local) — biên dịch **một lầ
 ### Chạy bản phát triển
 
 ```bash
-git clone https://github.com/ttkien2035/my-translator.git
-cd my-translator
+git clone https://github.com/ttkien2035/meowlaoshi.git
+cd meowlaoshi
 npm install
 cp .env.example .env          # tuỳ chọn; để trống cũng được
 npm run dev                   # mở app kèm DevTools; hot-reload giao diện
 ```
 
-`npm run dev` có thể dùng `APP_IDENTIFIER=com.personal.translator.dev` trong `.env` để bản dev có quyền Micro/Screen Recording riêng, không đụng bản cài chính thức.
+`npm run dev` có thể dùng `APP_IDENTIFIER=com.ttkien2035.meowlaoshi.dev` trong `.env` để bản dev có quyền Micro/Screen Recording riêng, không đụng bản cài chính thức.
 
 ### Kiểm tra & kiểm thử
 
@@ -259,9 +259,9 @@ Máy đã cài sẽ thấy bản mới trong **Cài đặt › Giới thiệu �
 
 | Nội dung | macOS | Windows |
 |---|---|---|
-| Cài đặt (API key, hồ sơ môn, từ điển) | `~/Library/Application Support/com.personal.translator/settings.json` (+ `.bak`) | `%APPDATA%\com.personal.translator\settings.json` |
-| Buổi học (Markdown + JSON) | `~/Library/Application Support/com.personal.translator/transcripts/` | `%APPDATA%\com.personal.translator\transcripts\` |
-| Model khử ồn/VAD, model Local, giọng Piper (thư mục giữ tên cũ) | `~/Library/Application Support/My Translator/{audio-models,local-models,…}` | `%APPDATA%\My Translator\…` |
+| Cài đặt (API key, hồ sơ môn, từ điển) | `~/Library/Application Support/com.ttkien2035.meowlaoshi/settings.json` (+ `.bak`) | `%APPDATA%\com.ttkien2035.meowlaoshi\settings.json` |
+| Buổi học (Markdown + JSON) | `~/Library/Application Support/com.ttkien2035.meowlaoshi/transcripts/` | `%APPDATA%\com.ttkien2035.meowlaoshi\transcripts\` |
+| Model khử ồn/VAD, model Local, giọng Piper | `~/Library/Application Support/com.ttkien2035.meowlaoshi/{audio-models,local-models,piper-models}` | `%APPDATA%\com.ttkien2035.meowlaoshi\…` |
 
 Tất cả ở trên máy bạn. Chỉ engine cloud bạn chọn nhận âm thanh; không có máy chủ trung gian.
 
@@ -386,4 +386,4 @@ scripts/tauri-with-env.mjs chạy dev/build (.env, ký ad-hoc, tắt file cập 
 
 ## Ghi công & giấy phép
 
-Lecture Edition do **ttkien2035** phát triển. Dựa trên [My Translator](https://github.com/phuc-nt/my-translator) của Nguyễn Trọng Phúc — MIT License. Phần tuỳ biến trong fork này cũng theo MIT. Model: [X-ASR](https://github.com/Gilgamesh-J/X-ASR) (ĐH Giao thông Thượng Hải và cộng sự, Apache-2.0), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — theo giấy phép riêng của từng model.
+MeowLaoshi do **ttkien2035** phát triển. Dựa trên [My Translator](https://github.com/phuc-nt/my-translator) của Nguyễn Trọng Phúc; theo yêu cầu của giấy phép MIT, thông báo bản quyền và giấy phép gốc được giữ nguyên trong [LICENSE](LICENSE). Phần tuỳ biến trong fork này cũng theo MIT. Icon app: emoji "cat face" của [Noto Emoji](https://github.com/googlefonts/noto-emoji) (Google, Apache-2.0; bản gốc trong `src-tauri/icons/source/`). Model: [X-ASR](https://github.com/Gilgamesh-J/X-ASR) (ĐH Giao thông Thượng Hải và cộng sự, Apache-2.0), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — theo giấy phép riêng của từng model.

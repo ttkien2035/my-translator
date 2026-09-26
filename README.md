@@ -86,6 +86,8 @@ Each engine's model name can be changed in **Cài đặt › Model** (Settings �
 
 ## Install (macOS)
 
+> Sharing the app with friends: send **[docs/huong-dan-cai-dat.pdf](docs/huong-dan-cai-dat.pdf)** along with the DMG — a 3-page Vietnamese guide to installing, setting up, using the app in class and fixing common problems (Markdown source: [docs/huong-dan-cai-dat.md](docs/huong-dan-cai-dat.md); rebuild the PDF with `python3 scripts/build-guide-pdf.py`).
+
 **Requirements:** macOS 13 or later. Apple silicon (M1–M4) works best; Intel works too (Local is slower).
 
 1. Open **[Releases](https://github.com/ttkien2035/my-translator/releases/latest)** and download the right file:

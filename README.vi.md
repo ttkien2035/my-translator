@@ -81,6 +81,8 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 
 ## Cài đặt cho người dùng (macOS)
 
+> Gửi app cho bạn bè: kèm file **[docs/huong-dan-cai-dat.pdf](docs/huong-dan-cai-dat.pdf)** (3 trang: cài đặt, thiết lập, dùng trên lớp, xử lý lỗi; bản Markdown: [docs/huong-dan-cai-dat.md](docs/huong-dan-cai-dat.md)). Sửa bản Markdown rồi chạy `python3 scripts/build-guide-pdf.py` để tạo lại PDF.
+
 **Yêu cầu:** macOS 13 trở lên. Chip Apple (M1–M4) chạy tốt nhất; Intel dùng được (Local chậm hơn).
 
 1. Vào **[Releases](https://github.com/ttkien2035/my-translator/releases/latest)** và tải đúng file:

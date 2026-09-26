@@ -66,34 +66,39 @@ export function contextTokens(ctx) {
 export const SONIOX_CONTEXT_TOKENS = 8000;
 const GLOSSARY_TOKEN_BUDGET = 6000;
 
+// Share of the glossary budget reserved for recognition terms. A term costs
+// ~5 tokens, a translation pair ~20, and a recognition error cannot be
+// repaired downstream, so the terms come first: 35 % holds every term of the
+// built-in glossary (≥ 3 characters); pairs fill the rest, longest first.
+const TERMS_SHARE = 0.35;
+
 /**
- * Trim `terms` / `translation_terms` to fit the Soniox budget. Priority is
- * the length of the Chinese term (longer = rarer = what recognition and
- * translation get wrong), translation pairs ahead of bare terms of the same
- * length; a term that is already a pair's source is not sent twice.
- * `general` and `text` are passed through. Returns `{context, dropped}`.
+ * Trim `terms` / `translation_terms` to fit the Soniox budget. Within each
+ * list the priority is the length of the Chinese term (longer = rarer = what
+ * recognition and translation get wrong). `general` and `text` are passed
+ * through. Returns `{context, dropped, tokens}`.
  */
 export function budgetContext(ctx, budget = GLOSSARY_TOKEN_BUDGET) {
   const pairs = (ctx.translation_terms || []).filter(p => p.source && p.target);
-  const pairSources = new Set(pairs.map(p => p.source));
-  const terms = (ctx.terms || []).filter(t => t && isRecognitionTerm(t) && !pairSources.has(t));
+  const terms = [...new Set((ctx.terms || []).filter(t => t && isRecognitionTerm(t)))];
+  const byLength = (a, b) => cjkCount(b) - cjkCount(a);
 
-  const items = [
-    ...pairs.map(p => ({ kind: 'pair', item: p, prio: cjkCount(p.source) * 2 + 1, cost: estimateTokens(`${p.source}${p.target}`) + 6 })),
-    ...terms.map(t => ({ kind: 'term', item: t, prio: cjkCount(t) * 2, cost: estimateTokens(t) + 1 })),
-  ].sort((a, b) => b.prio - a.prio);
-
-  const kept = { pair: [], term: [] };
   let used = 0;
   let dropped = 0;
-  for (const it of items) {
-    if (used + it.cost > budget) { dropped++; continue; }
-    used += it.cost;
-    kept[it.kind].push(it.item);
-  }
-  // Keep the profile's own order for the ones that made it.
-  const keptPairs = new Set(kept.pair);
-  const keptTerms = new Set(kept.term);
+  const take = (list, cost, limit) => {
+    const kept = new Set();
+    for (const item of list) {
+      const c = cost(item);
+      if (used + c > limit) { dropped++; continue; }
+      used += c;
+      kept.add(item);
+    }
+    return kept;
+  };
+  const keptTerms = take([...terms].sort(byLength), t => estimateTokens(t) + 1, budget * TERMS_SHARE);
+  const keptPairs = take([...pairs].sort((a, b) => byLength(a.source, b.source)), p => estimateTokens(`${p.source}${p.target}`) + 6, budget);
+
+  // Profile order for the survivors.
   return {
     context: {
       ...ctx,

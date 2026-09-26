@@ -28,7 +28,7 @@ test('token estimate: one per Chinese character, Vietnamese compressed', () => {
   assert.equal(estimateTokens(''), 0);
 });
 
-test('budget keeps long terms, drops short ones, never repeats a pair source', () => {
+test('budget keeps long terms and drops short ones first', () => {
   const ctx = {
     general: [{ key: 'domain', value: 'finance' }],
     text: 'bg',
@@ -42,16 +42,17 @@ test('budget keeps long terms, drops short ones, never repeats a pair source', (
   };
   const full = budgetContext(ctx, 10_000);
   assert.equal(full.dropped, 0);
-  assert.deepEqual(full.context.terms, ['久期风险'], 'short term and pair sources not resent as terms');
+  assert.deepEqual(full.context.terms, ['资产负债表', '贝塔系数', '久期风险'], 'short term dropped, profile order kept');
   assert.equal(full.context.translation_terms.length, 3, 'empty pair removed');
   assert.deepEqual(full.context.general, ctx.general);
   assert.equal(full.context.text, 'bg');
 
-  // A tight budget: the 5-char pair (prio 11) survives, then the 4-char pair, …
-  const tight = budgetContext(ctx, 20);
+  // A tight budget: 35 % goes to terms (longest first), pairs fill the rest, longest first.
+  const tight = budgetContext(ctx, 40);
+  assert.deepEqual(tight.context.terms, ['资产负债表', '贝塔系数'], '14 tokens of terms fit in 35 % of 40');
   assert.equal(tight.context.translation_terms[0].source, '资产负债表');
   assert.ok(tight.dropped > 0);
-  assert.ok(tight.tokens <= 20);
+  assert.ok(tight.tokens <= 40);
   assert.ok(!tight.context.translation_terms.some(p => p.source === '资产'), '2-char pair is the first to go');
 });
 
@@ -65,7 +66,8 @@ test('the full built-in glossary is cut to fit the Soniox limit', () => {
   const { context, dropped, tokens } = budgetContext(ctx);
   assert.ok(tokens <= 6000);
   assert.ok(dropped > 0);
-  assert.ok(context.translation_terms.length >= 200, `kept ${context.translation_terms.length} pairs`);
+  assert.ok(context.terms.length >= 380, `all long recognition terms kept, got ${context.terms.length}`);
+  assert.ok(context.translation_terms.length >= 150, `kept ${context.translation_terms.length} pairs`);
   assert.ok(context.translation_terms.some(p => p.source === '加权平均资本成本'));
   assert.ok(contextTokens(context) <= 8000);
 });

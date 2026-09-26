@@ -200,7 +200,7 @@ class App {
                 navigator.userAgent.includes('Mac OS X');
         }
 
-        // The Local engine (SenseVoice + Qwen via llama.cpp) runs in-process on
+        // The Local engine (X-ASR + Hy-MT2 via llama.cpp) runs in-process on
         // every platform; Apple Silicon just gets Metal. Readiness depends only
         // on the models being downloaded.
         this._localModelsReady = null;
@@ -2471,7 +2471,7 @@ class App {
         const hintQwen = document.getElementById('hint-mode-qwen');
         const ENGINE_HINTS = {
             soniox: 'Cloud · 70+ languages · ~$0.12/hr',
-            local: 'Offline · SenseVoice + Hy-MT2 trên máy · ~2–3 s sau khi hết câu',
+            local: 'Offline · X-ASR + Hy-MT2 trên máy · ~1–2 s sau khi hết câu',
             openai: 'Cloud · 13 languages · text-only captions',
             qwen: 'Cloud · 60+ languages · text-only · free preview · pick a source language',
         };
@@ -3041,7 +3041,7 @@ class App {
     }
 
     async _startLocalMode(settings) {
-        console.log('[App] Starting Local engine (SenseVoice + Qwen, in-process)...');
+        console.log('[App] Starting Local engine (X-ASR + Hy-MT2, in-process)...');
         this.transcriptUI.provider = 'soniox';
         this._updateStatus('connecting');
 
@@ -3167,7 +3167,7 @@ class App {
         const onProgress = new Channel();
         onProgress.onmessage = (msg) => {
             if (!progress) return;
-            const short = msg.id.startsWith('sensevoice') ? 'SenseVoice' : 'Hy-MT2';
+            const short = msg.id.startsWith('x-asr') ? 'X-ASR' : 'Hy-MT2';
             if (msg.phase === 'downloading' && msg.total > 0) {
                 progress.textContent = `${short}: ${Math.floor((msg.received / msg.total) * 100)}% (${(msg.received / 1048576).toFixed(0)} MB)`;
             } else if (msg.phase === 'extracting') {
@@ -3178,7 +3178,7 @@ class App {
         };
         try {
             await invoke('local_models_download', { onProgress });
-            this._showToast('Đã tải model Local (SenseVoice + Hy-MT2) ✓', 'success');
+            this._showToast('Đã tải model Local (X-ASR + Hy-MT2) ✓', 'success');
             if (progress) progress.textContent = '';
         } catch (err) {
             this._showToast(`Tải model thất bại: ${err}`, 'error');

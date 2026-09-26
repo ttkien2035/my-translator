@@ -1,4 +1,4 @@
-//! Pure-Rust Local engine (offline): SenseVoice ASR + Qwen translation.
+//! Pure-Rust Local engine (offline): X-ASR recognition + Hy-MT2 translation.
 //! Replaces the former Python/MLX sidecar. Commands mirror the cloud
 //! realtime engines: start → raw-body audio → stop, events over a Channel.
 
@@ -6,6 +6,7 @@ pub mod asr;
 pub mod llm;
 pub mod models;
 pub mod pipeline;
+pub mod spm;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -71,30 +72,18 @@ pub async fn local_start(
         .map(|s| s.local_llm_gguf.clone())
         .unwrap_or_default();
 
-    let asr = models::sensevoice_files()
-        .ok_or("models_missing: SenseVoice chưa được tải (Cài đặt › Model › Local)")?;
+    let asr = models::asr_files()
+        .ok_or("models_missing: model nhận dạng (X-ASR) chưa được tải (Cài đặt › Model › Local)")?;
     let llm_model = models::llm_path(&custom_gguf)
         .ok_or("models_missing: model dịch (GGUF) chưa được tải (Cài đặt › Model › Local)")?;
     let vad_model = audio_models::installed_path(audio_models::SILERO_VAD_ID)
         .ok_or("models_missing: Silero VAD chưa được tải (Cài đặt › Micro › Tải model)")?;
 
-    let asr_language = match config.source_language.as_str() {
-        "zh" | "zh-CN" | "zh-TW" => "zh",
-        "yue" => "yue",
-        "en" => "en",
-        "ja" => "ja",
-        "ko" => "ko",
-        _ => "auto",
-    }
-    .to_string();
-
     let session = pipeline::start_with_sink(
         SessionConfig {
-            asr_model: asr.model,
-            asr_tokens: asr.tokens,
+            asr,
             llm_model,
             vad_model,
-            asr_language,
             source_lang_name: lang_name(&config.source_language).to_string(),
             target_lang_name: lang_name(&config.target_language).to_string(),
             glossary: config

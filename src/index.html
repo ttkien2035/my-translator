@@ -767,7 +767,7 @@
             <div class="model-engine-row" data-engine="local">
               <button type="button" class="model-engine-pick" data-engine="local">🖥️ Local (offline)</button>
               <span class="model-engine-key" id="model-key-local">○ chưa tải</span>
-              <p class="hint" style="grid-column:1 / -1; margin:0">SenseVoice-small (nhận dạng, 163 MB) + Hy-MT2-1.8B của Tencent (model chuyên dịch, 1,5 GB) chạy ngay trong app — không Python, Apple Silicon dùng Metal. Từ điển của hồ sơ môn học được đưa vào prompt dịch.</p>
+              <p class="hint" style="grid-column:1 / -1; margin:0">X-ASR Zipformer (nhận dạng, 136 MB, có dấu câu) + Hy-MT2-1.8B của Tencent (model chuyên dịch, 1,5 GB) chạy ngay trong app — không Python, Apple Silicon dùng Metal. Từ điển của hồ sơ môn học được nạp làm hotword cho nhận dạng và đưa vào prompt dịch.</p>
               <div class="input-group" style="grid-column:1 / -1; align-items:center">
                 <button id="btn-local-models-download" class="btn-secondary small" type="button">Tải model (1,6 GB)</button>
                 <span id="local-models-progress" class="hint" style="margin:0 0 0 8px"></span>
@@ -828,15 +828,15 @@
             <input type="checkbox" id="check-mic-highpass" /> Lọc tiếng ù / rung (high-pass 80 Hz)
           </label>
           <label class="checkbox-field" style="display:block;margin-top:6px">
-            <input type="checkbox" id="check-mic-agc" /> Tự động tăng âm (AGC) — giọng xa nghe rõ hơn
+            <input type="checkbox" id="check-mic-agc" /> Tự động tăng âm (AGC) — chỉ khi micro thu quá nhỏ
           </label>
           <label class="checkbox-field" style="display:block;margin-top:6px">
-            <input type="checkbox" id="check-mic-denoise" /> Khử tiếng ồn nền (GTCRN, chạy trên máy)
+            <input type="checkbox" id="check-mic-denoise" /> Khử tiếng ồn nền (GTCRN) — cho tiếng ồn đều như quạt, điều hoà
           </label>
           <label class="checkbox-field" style="display:block;margin-top:6px">
             <input type="checkbox" id="check-mic-vad" /> Chỉ gửi khi có tiếng nói (VAD) — tiết kiệm phí STT
           </label>
-          <p class="hint">Gợi ý: bật khử ồn; bật VAD nếu lớp có nhiều khoảng lặng. Khử ồn quá tay có thể làm nhận dạng kém — tắt nếu thấy sai nhiều hơn.</p>
+          <p class="hint">Gợi ý: để tắt khử ồn và AGC. Đo trên bài giảng thật: trong phòng vang có tiếng sinh viên, khử ồn làm nhận dạng sai gấp đôi; AGC không giúp gì kể cả khi âm thu nhỏ. Bật VAD nếu lớp có nhiều khoảng lặng.</p>
         </div>
 
         <div class="settings-section" id="section-audio-models">

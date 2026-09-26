@@ -17,6 +17,7 @@
 7. [Đóng gói miễn phí cho bạn bè](#đóng-gói-miễn-phí-cho-bạn-bè)
 8. [Dữ liệu nằm ở đâu](#dữ-liệu-nằm-ở-đâu)
 9. [Xử lý sự cố](#xử-lý-sự-cố)
+- [Kết quả đo model Local](#kết-quả-đo-model-local)
 10. [Kiến trúc & công nghệ](#kiến-trúc--công-nghệ)
 11. [Cấu trúc repo & tài liệu](#cấu-trúc-repo--tài-liệu)
 
@@ -31,7 +32,7 @@
 | ☁️ **Soniox** (khuyên dùng) | cloud | ~2 s | ~$0.12/giờ | 70+ ngôn ngữ nguồn; nhận **từ điển thuật ngữ** và ngữ cảnh của hồ sơ môn học |
 | 🌏 **Qwen LiveTranslate** | cloud (Alibaba) | ~4 s | miễn phí (preview) | vào được từ Trung Quốc không cần VPN; chỉ văn bản |
 | ⚡ **OpenAI Realtime** | cloud | ~2 s | ~$4/giờ | có giọng nói dịch; cần VPN ở Trung Quốc |
-| 🖥️ **Local** (offline) | trên máy, thuần Rust | ~2–3 s sau khi hết câu | miễn phí | SenseVoice (nhận dạng) + Hy-MT2-1.8B của Tencent (model chuyên dịch, Metal trên Apple Silicon); từ điển môn học đưa vào prompt |
+| 🖥️ **Local** (offline) | trên máy, thuần Rust | ~1–2 s sau khi hết câu | miễn phí | X-ASR Zipformer (nhận dạng có dấu câu; từ điển môn học thành hotword) + Hy-MT2-1.8B của Tencent (model chuyên dịch, Metal trên Apple Silicon; từ điển đưa vào prompt) |
 
 Tên model của từng engine chỉnh được trong **Cài đặt › Model** (kể cả GGUF tuỳ chỉnh cho Local). Cùng chỗ đó có ô **LLM hỗ trợ** (DeepSeek / Qwen DashScope / Zhipu GLM / OpenAI / bất kỳ API chuẩn OpenAI) dành cho các tính năng dịch lại học thuật và tóm tắt sắp tới.
 
@@ -177,7 +178,7 @@ cd src-tauri
 cargo check && cargo clippy --all-targets      # phải sạch cảnh báo
 cargo test                                     # test không cần model
 # Kiểm thử engine Local với model thật (thư mục model đã cài trong app dùng được):
-MT_TEST_SENSEVOICE_DIR=/path/sensevoice MT_TEST_GGUF=/path/Hy-MT2-1.8B-Q6_K.gguf \
+MT_TEST_XASR_DIR=/path/x-asr-zh-en-punct-int8 MT_TEST_GGUF=/path/Hy-MT2-1.8B-Q6_K.gguf \
   MT_TEST_WAV=/path/zh.wav cargo test --lib local:: -- --include-ignored --nocapture
 ```
 
@@ -185,8 +186,9 @@ Biến môi trường cho kiểm thử:
 
 | Biến | Tác dụng |
 |---|---|
-| `MT_TEST_SENSEVOICE_DIR` | thư mục chứa `model.int8.onnx` + `tokens.txt` |
-| `MT_TEST_WAV` | wav 16 kHz mono s16le cho test SenseVoice (mặc định `$MT_TEST_SENSEVOICE_DIR/test_wavs/zh.wav`). Trên macOS: `say -v Tingting "…" -o zh.aiff && afconvert -f WAVE -d LEI16@16000 -c 1 zh.aiff zh.wav` |
+| `MT_TEST_XASR_DIR` | thư mục X-ASR đã giải nén (dùng luôn `local-models/x-asr-zh-en-punct-int8` của app được) |
+| `MT_TEST_WAV` | wav 16 kHz mono s16le cho test nhận dạng (mặc định: wav đầu tiên trong `$MT_TEST_XASR_DIR/test_wavs`). Trên macOS: `say -v Tingting "…" -o zh.aiff && afconvert -f WAVE -d LEI16@16000 -c 1 zh.aiff zh.wav` |
+| `MT_TEST_VAD`, `MT_TEST_LONG_WAV` | model Silero VAD + một wav dài có ồn cho `cargo test --release --test local_pipeline -- --ignored` (kiểm ngắt câu 8–12 s) |
 | `MT_TEST_GGUF` | file GGUF cho test LLM |
 | `MT_SETTINGS_DIR` | app/test đọc-ghi `settings.json` trong thư mục này thay vì thư mục thật — thử settings hỏng/`.bak` mà không đụng cài đặt của bạn |
 
@@ -279,20 +281,66 @@ Bạn có thể mở DevTools trong bản dev (`npm run dev`) để xem log `[So
 
 ---
 
+## Kết quả đo model Local
+
+Đo ngày 26-09-2026 trên CPU x86 (4 luồng cho nhận dạng, 8 cho LLM), gọi đúng các hàm sherpa-onnx / llama.cpp như trong app; bộ đo và dữ liệu không nằm trong repo. Trên chip M nhanh hơn (QA đo LLM 0,4–0,5 s/câu trên Metal, ở đây 2 s), nên hãy so các dòng với nhau, không lấy số tuyệt đối.
+
+### Nhận dạng tiếng Trung — tỷ lệ lỗi, càng thấp càng tốt
+
+Dữ liệu: mỗi tập 100 câu từ SpeechIO ZH00000 (hội thảo tài chính), ZH00008 và ZH00025 (giảng bài trực tiếp), WenetSpeech `test_meeting` (họp, thu xa micro); 80 câu "giảng đường" = giọng giảng bài thêm vang phòng mô phỏng (RT60 0,7 s) và tiếng sinh viên nói chuyện ở SNR 10 dB; hai bài giảng thật dài 25 phút chấm theo phụ đề người chép.
+
+| Model | Tải về | Hội thảo tài chính | Giảng bài | Họp | Giảng đường (mô phỏng) | Cả 480 câu | Bài giảng thật | Bài giảng thật + phòng vang | ms/câu | RAM đỉnh |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **X-ASR zh-en punct int8** (chọn) | 136 MB | 2,6 % | 5,6 / 4,3 % | 9,6 % | 14,6 % | **6,8 %** | **8,2 %** | **11,3 %** | 65 | 578 MB |
+| SenseVoice-small int8 (trước đây) | 163 MB | 3,0 % | 4,6 / 5,4 % | 8,9 % | 16,6 % | 7,0 % | 8,9 % | 13,1 % | 68 | 354 MB |
+| FireRedASR2-AED int8 | 839 MB | 2,7 % | 3,3 / 4,0 % | 7,1 % | 11,3 % | 5,3 % | — | — | 1 016 | 1,75 GB |
+| FunASR-Nano int8 | 842 MB | 2,8 % | 4,8 / 4,3 % | 9,1 % | 15,3 % | 6,7 % | — | — | 465 | 1,7 GB |
+| Qwen3-ASR-0.6B int8 | 879 MB | 3,2 % | 6,2 / 4,6 % | 9,3 % | 14,6 % | 7,1 % | — | — | 645 | 1,96 GB |
+| zipformer-ctc-zh int8 | 301 MB | 4,2 % | 4,7 / 6,9 % | 9,1 % | 13,6 % | 7,2 % | — | — | 99 | 733 MB |
+| FireRedASR2-CTC int8 | 521 MB | 4,3 % | 7,2 / 6,2 % | 9,4 % | 17,1 % | 8,3 % | — | — | 508 | 970 MB |
+| SenseVoice bản 2025-09 / funasr-nano | 166–188 MB | 3,4–4,0 % | — | 10,6–11,1 % | 20,9–22,4 % | 9,1 % | — | — | 66 | — |
+| Paraformer-zh 2025 int8 | 228 MB | 3,3 % | 7,0 / 9,5 % | 12,4 % | 24,4 % | 10,4 % | — | — | 52 | 321 MB |
+
+FireRedASR2-AED chính xác nhất nhưng chậm gấp 15 lần và tốn RAM gấp 5, trái yêu cầu app nhẹ. Không dùng chế độ streaming của X-ASR: báo cáo của chính model cho thấy streaming 480 ms lỗi 9,1 % so với 7,1 % offline trên WenetSpeech meeting.
+
+### Chuỗi micro và hotword từ từ điển (X-ASR)
+
+| Cấu hình | Giảng đường (mô phỏng) | Bài giảng thật + phòng vang | Nhận đúng thuật ngữ tài chính (143 lượt, giảng đường) |
+|---|---|---|---|
+| chỉ lọc 80 Hz | 14,9 % | 11,3 % | 93,0 % |
+| + AGC | — | 12,3 % | — |
+| + khử ồn GTCRN | 33,0 % | 15,4 % | 83,9 % |
+| + hotword từ từ điển (từ ≥ 3 chữ Hán, điểm 2,0) | 14,9 % | 11,3 % | **99,3 %** (SenseVoice: 84,6 %) |
+
+Vì vậy GTCRN và AGC tắt mặc định (vẫn bật được trong Cài đặt › Micro), và mọi thuật ngữ từ 3 chữ Hán trở lên trong từ điển trở thành hotword. Phát hiện thêm: khi tiếng ồn liên tục, VAD của sherpa-onnx không bao giờ ngắt ở mốc 8 s `max_speech_duration` (có đoạn 46 s — dịch trễ bấy nhiêu, và X-ASR sập từ 50 s); pipeline nay tự ngắt câu ở chỗ lặng sau 8 s, chậm nhất là 12 s.
+
+### Dịch Trung → Việt — 25 câu bài giảng tài chính, giải mã greedy
+
+| Model | File | Câu còn lẫn chữ Hán | s/câu (CPU) | Ghi chú |
+|---|---|---|---|---|
+| **Hy-MT2-1.8B Q6_K** (chọn) | 1,47 GB | **0/25** | 1,4 | số liệu đúng, theo từ điển |
+| Hy-MT2-1.8B Q4_K_M | 1,13 GB | 0/25 | 1,2 | mất chữ số ("3,2" → "3") |
+| Hy-MT2-7B Q4_K_M | 4,6 GB | 0/25 | 6,5–7,5 | chất lượng tốt nhất, quá nặng |
+| Qwen2.5-3B-Instruct Q4_K_M (trước đây) | 2,1 GB | 15/25 | 2,0 | 1 câu trả lời bằng tiếng Anh |
+| Qwen3-4B-Instruct-2507 Q4_K_M | 2,5 GB | 0/25 | 2,6–3,3 | sai nội dung (trái phiếu → cổ phiếu) |
+| Qwen3.5-4B Q4_K_M | 2,7 GB | 0/15 | 3,1 | sai thứ trong tuần |
+| Gemma-3-4B-it Q4_K_M | 2,5 GB | 0/15 | 2,4 | tự thêm "đô la" |
+| Qwen3-1.7B Q4_K_M | 1,1 GB | 1/15 | 1,2 | sai số liệu |
+
 ## Kiến trúc & công nghệ
 
 ```
                  ┌ Soniox (WebSocket từ giao diện; từ điển + ngữ cảnh hồ sơ môn)
 Micro / hệ thống ─► Rust capture ─► DSP thread (resample · HPF · GTCRN · AGC · VAD) ─► IPC nhị phân ─┼ Qwen LiveTranslate (Rust WS)
                                                                                                     ├ OpenAI Realtime (Rust WS)
-                                                                                                    └ Local: Silero VAD → SenseVoice → Hy-MT2 (llama.cpp)
+                                                                                                    └ Local: Silero VAD → X-ASR → Hy-MT2 (llama.cpp)
                                                                                                                           │
                                                              Overlay · Ghi chú · Thư viện (Markdown + JSON)  ◄────────────┘
 ```
 
 - **Tauri 2** (Rust backend, giao diện HTML/JS không framework, không bundler)
 - **cpal** / **ScreenCaptureKit** / **WASAPI** thu âm; **coreaudio-rs** cho Apple Voice Processing; **rubato** resample
-- **sherpa-onnx**: Silero VAD, GTCRN khử ồn, SenseVoice nhận dạng, Piper TTS
+- **sherpa-onnx**: Silero VAD, X-ASR nhận dạng (hotword từ từ điển), GTCRN khử ồn (tuỳ chọn), Piper TTS
 - **llama-cpp-2** (llama.cpp): Hy-MT2-1.8B GGUF (GGUF instruct bất kỳ làm model tuỳ chỉnh), Metal trên Apple Silicon
 - **reqwest / tokio-tungstenite** cho các engine cloud
 
@@ -311,7 +359,7 @@ src/                     giao diện (HTML/CSS/JS thuần, không bundler)
   js/glossary/           từ điển tài chính Trung–Anh–Việt
 src-tauri/               backend Rust (Tauri 2)
   src/audio/             thu âm: cpal, ScreenCaptureKit, WASAPI, Apple Voice Processing, DSP micro
-  src/local/             engine offline: VAD → SenseVoice → Hy-MT2 (llama.cpp)
+  src/local/             engine offline: VAD → X-ASR → Hy-MT2 (llama.cpp)
   src/commands/          lệnh Tauri: engine cloud, TTS, phiên, tải model
 docs/project-changelog.md  lịch sử thay đổi (CI dùng làm release notes)
 docs/tts_guide*.md         hướng dẫn giọng đọc
@@ -324,4 +372,4 @@ scripts/tauri-with-env.mjs chạy dev/build (.env, ký ad-hoc, tắt file cập 
 
 ## Ghi công & giấy phép
 
-Lecture Edition do **ttkien2035** phát triển. Dựa trên [My Translator](https://github.com/phuc-nt/my-translator) của Nguyễn Trọng Phúc — MIT License. Phần tuỳ biến trong fork này cũng theo MIT. Model: [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) (FunAudioLLM), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — theo giấy phép riêng của từng model.
+Lecture Edition do **ttkien2035** phát triển. Dựa trên [My Translator](https://github.com/phuc-nt/my-translator) của Nguyễn Trọng Phúc — MIT License. Phần tuỳ biến trong fork này cũng theo MIT. Model: [X-ASR](https://github.com/Gilgamesh-J/X-ASR) (ĐH Giao thông Thượng Hải và cộng sự, Apache-2.0), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — theo giấy phép riêng của từng model.

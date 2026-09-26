@@ -1,6 +1,6 @@
-//! Local engine session: audio → Silero VAD utterances → SenseVoice ASR →
-//! Qwen (llama.cpp) translation → events to a sink (the webview Channel in
-//! the app, a closure in tests).
+//! Local engine session: audio → Silero VAD utterances → X-ASR (Zipformer)
+//! recognition → Hy-MT2 (llama.cpp) translation → events to a sink (the
+//! webview Channel in the app, a closure in tests).
 //!
 //! Two worker threads, both owned by the session:
 //! - `local-asr`: owns VAD + recognizer; drains the audio queue, emits one
@@ -24,6 +24,7 @@ use sherpa_onnx::{SileroVadModelConfig, VadModelConfig, VoiceActivityDetector};
 
 use super::asr::Asr;
 use super::llm::{Llm, TranslateRequest};
+use super::models::AsrFiles;
 
 /// Audio queue depth (200 ms capture batches): ~10 s before frames are dropped.
 const AUDIO_QUEUE_CHUNKS: usize = 50;
@@ -38,8 +39,17 @@ const MIN_SEGMENT_DBFS: f32 = -45.0;
 /// the previous utterance, so no tail of it leaks in.
 const PRE_ROLL_SAMPLES: usize = SAMPLE_RATE as usize * 3 / 10;
 /// Recent audio kept for pre-roll: a segment's start lies at most
-/// max_speech (8 s) + min_silence (0.35 s) behind the newest sample.
-const HISTORY_SAMPLES: usize = SAMPLE_RATE as usize * 12;
+/// HARD_CUT (12 s) + min_silence (0.35 s) behind the newest sample.
+const HISTORY_SAMPLES: usize = SAMPLE_RATE as usize * 16;
+/// sherpa's `max_speech_duration` only relaxes the end-of-speech rule (a
+/// shorter pause then suffices); under continuous babble — a classroom —
+/// a segment kept growing for 46 s in tests: that much translation delay,
+/// and X-ASR's graph fails at ≥ 50 s. So the pipeline cuts on its own: at a
+/// quiet capture chunk once SOFT_CUT is reached, unconditionally at HARD_CUT.
+const SOFT_CUT_SAMPLES: u64 = SAMPLE_RATE as u64 * 8;
+const HARD_CUT_SAMPLES: u64 = SAMPLE_RATE as u64 * 12;
+/// A capture chunk this far below the utterance's loudest chunk is a pause.
+const CUT_QUIET_DB: f32 = 15.0;
 
 /// Ring of the most recent input samples, indexed by absolute sample number
 /// (the same numbering VAD uses for `SpeechSegment::start`).
@@ -105,14 +115,14 @@ impl Translator for Llm {
 pub type TranslatorFactory = Box<dyn FnOnce() -> Result<Box<dyn Translator>, String> + Send>;
 
 pub struct SessionConfig {
-    pub asr_model: std::path::PathBuf,
-    pub asr_tokens: std::path::PathBuf,
+    pub asr: AsrFiles,
     pub llm_model: std::path::PathBuf,
     pub vad_model: std::path::PathBuf,
-    /// SenseVoice language code ("auto", "zh", …) and prompt language names.
-    pub asr_language: String,
+    /// Prompt language names ("Chinese", "Vietnamese").
     pub source_lang_name: String,
     pub target_lang_name: String,
+    /// Course glossary (source → target). Sources become ASR hotwords;
+    /// pairs found in a sentence go into that sentence's prompt.
     pub glossary: Vec<(String, String)>,
 }
 
@@ -269,6 +279,36 @@ fn status(sink: &EventSink, state: &str, message: impl Into<Option<String>>) {
     });
 }
 
+/// Utterance length guard (see `SOFT_CUT_SAMPLES`): tracks how long VAD has
+/// been inside speech and the loudest capture chunk so far.
+#[derive(Default)]
+struct Cutter {
+    /// Absolute sample index when speech was first seen (None outside speech).
+    started: Option<u64>,
+    peak_dbfs: f32,
+}
+
+impl Cutter {
+    /// `now`: absolute index one past the newest sample; `chunk_dbfs`: level of
+    /// the chunk just fed to VAD. True = cut the utterance here.
+    fn update(&mut self, now: u64, chunk_dbfs: f32) -> bool {
+        let started = *self.started.get_or_insert_with(|| {
+            self.peak_dbfs = f32::NEG_INFINITY;
+            now
+        });
+        self.peak_dbfs = self.peak_dbfs.max(chunk_dbfs);
+        should_cut(now - started, chunk_dbfs, self.peak_dbfs)
+    }
+
+    fn reset(&mut self) {
+        self.started = None;
+    }
+}
+
+fn should_cut(len: u64, chunk_dbfs: f32, peak_dbfs: f32) -> bool {
+    len >= HARD_CUT_SAMPLES || (len >= SOFT_CUT_SAMPLES && chunk_dbfs <= peak_dbfs - CUT_QUIET_DB)
+}
+
 /// RMS level of a segment in dBFS (−∞ for silence).
 fn rms_dbfs(samples: &[f32]) -> f32 {
     if samples.is_empty() {
@@ -284,9 +324,9 @@ fn content_of(text: &str) -> String {
     text.chars().filter(|c| c.is_alphanumeric()).collect()
 }
 
-/// Filters junk utterances before they reach the LLM: SenseVoice returns
-/// e.g. "没。" for a quiet segment, and VAD can emit the same short phrase
-/// twice at a boundary.
+/// Filters junk utterances before they reach the LLM: a recogniser can
+/// return e.g. "没。" for a quiet segment, and VAD can emit the same short
+/// phrase twice at a boundary.
 #[derive(Default)]
 struct UtteranceFilter {
     last_content: String,
@@ -317,9 +357,9 @@ fn asr_worker(
     sink: &EventSink,
     cancel: &AtomicBool,
 ) {
-    status(sink, "loading", Some("Đang nạp SenseVoice…".into()));
+    status(sink, "loading", Some("Đang nạp nhận dạng (X-ASR)…".into()));
     let threads = (std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4) / 2).clamp(2, 4) as i32;
-    let asr = match Asr::load(&cfg.asr_model, &cfg.asr_tokens, &cfg.asr_language, threads) {
+    let asr = match Asr::load(&cfg.asr, cfg.glossary.iter().map(|(src, _)| src.as_str()), threads) {
         Ok(a) => a,
         Err(e) => {
             sink(LocalEvent::Error { code: "asr_load".into(), message: e });
@@ -330,8 +370,8 @@ fn asr_worker(
         silero_vad: SileroVadModelConfig {
             model: Some(cfg.vad_model.to_string_lossy().into_owned()),
             threshold: 0.5,
-            // Utterance boundaries: a 350 ms pause ends a sentence; a monologue
-            // is cut at 8 s so latency stays bounded.
+            // Utterance boundaries: a 350 ms pause ends a sentence; past 8 s
+            // VAD accepts a shorter pause (the hard cut is `Cutter`, below).
             min_silence_duration: 0.35,
             min_speech_duration: 0.25,
             window_size: 512,
@@ -380,6 +420,7 @@ fn asr_worker(
     };
 
     let mut samples: Vec<f32> = Vec::with_capacity(8192);
+    let mut cutter = Cutter::default();
     for pcm in audio_rx {
         if cancel.load(Ordering::SeqCst) {
             break;
@@ -391,6 +432,15 @@ fn asr_worker(
         }
         history.push(&samples);
         vad.accept_waveform(&samples);
+        if vad.detected() {
+            if cutter.update(history.end, rms_dbfs(&samples)) {
+                // Ends the current segment where it stands; VAD keeps running.
+                vad.flush();
+                cutter.reset();
+            }
+        } else {
+            cutter.reset();
+        }
         drain(&vad, &history, &mut utterance, &mut filter);
     }
     if !cancel.load(Ordering::SeqCst) {
@@ -445,6 +495,25 @@ fn llm_worker(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cutter_soft_and_hard_caps() {
+        let s = SAMPLE_RATE as u64;
+        // Under 8 s: never, however quiet the chunk.
+        assert!(!should_cut(7 * s, -80.0, -20.0));
+        // 8–12 s: only at a chunk ≥ 15 dB under the utterance's peak.
+        assert!(!should_cut(9 * s, -30.0, -20.0));
+        assert!(should_cut(9 * s, -35.0, -20.0));
+        // 12 s: always.
+        assert!(should_cut(12 * s, -20.0, -20.0));
+        // Stateful wrapper: start is the first speech chunk, peak tracks the loudest.
+        let mut c = Cutter::default();
+        assert!(!c.update(3200, -20.0)); // speech starts at 3200
+        assert!(!c.update(3200 + 9 * s, -25.0)); // 9 s in, not quiet enough
+        assert!(c.update(3200 + 10 * s, -36.0)); // quiet chunk → cut
+        c.reset();
+        assert!(!c.update(3200 + 11 * s, -36.0), "after a cut the count restarts");
+    }
 
     #[test]
     fn rms_levels() {

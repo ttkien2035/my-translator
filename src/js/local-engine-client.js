@@ -1,4 +1,4 @@
-// Local engine client (pure-Rust backend: SenseVoice ASR + Qwen via llama.cpp).
+// Local engine client (pure-Rust backend: X-ASR recognition + Hy-MT2 via llama.cpp).
 // Same shape as the cloud realtime clients: connect → sendAudio → disconnect,
 // events over a Tauri Channel. Audio goes as the raw invoke body with the
 // session id in a header (no JSON number arrays).

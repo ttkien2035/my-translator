@@ -1,7 +1,8 @@
 //! Models for the pure-Rust Local engine, downloaded on demand into the app
 //! data dir with pinned SHA-256 checksums:
 //!
-//! - SenseVoice-small int8 (sherpa-onnx, zh/en/ja/ko/yue ASR), ~163 MB archive
+//! - X-ASR-zh-en Zipformer transducer int8, punctuation build (sherpa-onnx
+//!   release asset), 136 MB archive
 //! - Tencent Hy-MT2-1.8B Q6_K GGUF (llama.cpp translation model), ~1.47 GB
 //!
 //! Hugging Face is tried first, then the hf-mirror.com mirror (reachable from
@@ -15,12 +16,14 @@ use tauri::ipc::Channel;
 
 use crate::commands::download::{download_file, extract_tar_bz2, DownloadProgress};
 
-pub const SENSEVOICE_ID: &str = "sensevoice-int8";
+pub const ASR_ID: &str = "x-asr-zh-en-punct-int8";
 pub const LLM_ID: &str = "hy-mt2-1.8b-q6";
 
-/// The former default LLM (Qwen2.5-3B-Instruct Q4_K_M, 2.1 GB). Deleted once
-/// Hy-MT2 is installed, unless the user points the custom GGUF at it.
+/// Former models, deleted once their replacement is installed:
+/// Qwen2.5-3B-Instruct Q4_K_M (2.1 GB; kept if it is the custom GGUF) and
+/// SenseVoice-small int8 (230 MB).
 const LEGACY_LLM_FILE: &str = "qwen2.5-3b-instruct-q4_k_m.gguf";
+const LEGACY_ASR_DIR: &str = "sensevoice-int8";
 
 pub enum Kind {
     /// `.tar.bz2` whose single top-level folder is stripped into `dir`.
@@ -40,13 +43,18 @@ pub struct LocalModel {
 }
 
 pub const MODELS: [LocalModel; 2] = [
+    // Apache-2.0 (SJTU et al., 2026-06). Chosen over SenseVoice-small on
+    // 480 lecture/meeting/classroom utterances and two 25-min lectures:
+    // fewer errors (6.8 % vs 7.0 % overall, 14.6 % vs 16.6 % in a simulated
+    // classroom, 8.2 % vs 8.9 % on a real lecture), punctuation, English
+    // casing, and hotwords for the course glossary.
     LocalModel {
-        id: SENSEVOICE_ID,
-        label: "SenseVoice-small (nhận dạng)",
-        kind: Kind::Archive { dir: "sensevoice-int8" },
-        urls: &["https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"],
-        sha256: "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
-        size: 163_002_883,
+        id: ASR_ID,
+        label: "X-ASR Zipformer zh-en (nhận dạng)",
+        kind: Kind::Archive { dir: "x-asr-zh-en-punct-int8" },
+        urls: &["https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-x-asr-zipformer-transducer-zh-en-punct-int8-2026-06-03.tar.bz2"],
+        sha256: "5d02c36d7b44e886b7c8f0d8e051f8713acab96c264bb6ef9e718be39a6a2224",
+        size: 136_396_739,
     },
     // Apache-2.0. Chosen over Qwen2.5-3B by a 25-sentence finance-lecture
     // benchmark: no untranslated Chinese (Qwen: 15/25), faster, smaller.
@@ -75,24 +83,60 @@ fn entry(id: &str) -> Option<&'static LocalModel> {
     MODELS.iter().find(|m| m.id == id)
 }
 
-/// Files the ASR needs inside the SenseVoice folder.
-pub struct SenseVoiceFiles {
-    pub model: PathBuf,
+/// Files the recogniser needs inside the X-ASR folder.
+pub struct AsrFiles {
+    pub encoder: PathBuf,
+    pub decoder: PathBuf,
+    pub joiner: PathBuf,
     pub tokens: PathBuf,
+    /// Written by `ensure_bpe_vocab` from the archive's `bpe.model`.
+    pub bpe_vocab: PathBuf,
 }
 
-/// Installed SenseVoice files, if the archive was fully extracted.
-pub fn sensevoice_files() -> Option<SenseVoiceFiles> {
-    let Some(LocalModel { kind: Kind::Archive { dir }, .. }) = entry(SENSEVOICE_ID) else {
+impl AsrFiles {
+    pub fn in_dir(root: &Path) -> Self {
+        Self {
+            encoder: root.join("encoder-epoch-99-avg-1.int8.onnx"),
+            decoder: root.join("decoder-epoch-99-avg-1.onnx"),
+            joiner: root.join("joiner-epoch-99-avg-1.int8.onnx"),
+            tokens: root.join("tokens.txt"),
+            bpe_vocab: root.join("bpe.vocab"),
+        }
+    }
+
+    fn all_present(&self) -> bool {
+        [&self.encoder, &self.decoder, &self.joiner, &self.tokens, &self.bpe_vocab].iter().all(|p| p.is_file())
+    }
+}
+
+/// Installed X-ASR files, if the archive was fully extracted.
+pub fn asr_files() -> Option<AsrFiles> {
+    let Some(LocalModel { kind: Kind::Archive { dir }, .. }) = entry(ASR_ID) else {
         return None;
     };
     let root = models_dir().join(dir);
-    let files = SenseVoiceFiles {
-        model: root.join("model.int8.onnx"),
-        tokens: root.join("tokens.txt"),
-    };
-    (root.join(".complete").is_file() && files.model.is_file() && files.tokens.is_file())
-        .then_some(files)
+    if !root.join(".complete").is_file() {
+        return None;
+    }
+    // Installs made before bpe.vocab existed get it here.
+    let _ = ensure_bpe_vocab(&root);
+    let files = AsrFiles::in_dir(&root);
+    files.all_present().then_some(files)
+}
+
+/// Write `bpe.vocab` next to `bpe.model` unless it is already there.
+/// sherpa-onnx's hotword encoder reads the vocab file, not the model.
+pub fn ensure_bpe_vocab(root: &Path) -> Result<PathBuf, String> {
+    let vocab = root.join("bpe.vocab");
+    if vocab.is_file() {
+        return Ok(vocab);
+    }
+    let model = std::fs::read(root.join("bpe.model")).map_err(|e| format!("read bpe.model: {e}"))?;
+    let text = super::spm::vocab_text(&super::spm::pieces(&model)?);
+    let tmp = root.join(".bpe.vocab.tmp");
+    std::fs::write(&tmp, text).map_err(|e| format!("write bpe.vocab: {e}"))?;
+    std::fs::rename(&tmp, &vocab).map_err(|e| format!("finalize bpe.vocab: {e}"))?;
+    Ok(vocab)
 }
 
 /// Installed GGUF: a custom path from settings when it exists, else the
@@ -118,7 +162,7 @@ pub fn llm_path(custom: &str) -> Option<PathBuf> {
 
 fn is_installed(m: &LocalModel) -> bool {
     match m.id {
-        SENSEVOICE_ID => sensevoice_files().is_some(),
+        ASR_ID => asr_files().is_some(),
         LLM_ID => llm_path("").is_some(),
         _ => false,
     }
@@ -177,21 +221,26 @@ pub async fn local_models_download(
         emit("done", m.size, None);
     }
     let custom_gguf = settings.0.lock().map(|s| s.local_llm_gguf.clone()).unwrap_or_default();
-    remove_legacy_llm(&dir, &custom_gguf);
+    remove_legacy(&dir, &custom_gguf);
     Ok(())
 }
 
-/// Free the 2.1 GB of the former default once its replacement is in place.
-/// Kept when it is the user's custom GGUF, or if anything is uncertain.
-fn remove_legacy_llm(dir: &Path, custom_gguf: &str) {
-    if llm_path("").is_none() {
-        return;
+/// Free the space of former defaults once their replacements are in place.
+/// The old GGUF is kept when it is the user's custom model; anything
+/// uncertain is kept.
+fn remove_legacy(dir: &Path, custom_gguf: &str) {
+    if llm_path("").is_some() {
+        let legacy = dir.join(LEGACY_LLM_FILE);
+        if legacy.is_file() && !is_same_file(&legacy, Path::new(custom_gguf.trim())) {
+            let _ = std::fs::remove_file(&legacy);
+        }
     }
-    let legacy = dir.join(LEGACY_LLM_FILE);
-    if !legacy.is_file() || is_same_file(&legacy, Path::new(custom_gguf.trim())) {
-        return;
+    if asr_files().is_some() {
+        let legacy = dir.join(LEGACY_ASR_DIR);
+        if legacy.is_dir() {
+            let _ = std::fs::remove_dir_all(&legacy);
+        }
     }
-    let _ = std::fs::remove_file(&legacy);
 }
 
 fn is_same_file(a: &Path, b: &Path) -> bool {
@@ -224,7 +273,7 @@ async fn install_one(
             let target = dir.join(sub);
             let tmp = dir.join(format!(".tmp-{sub}"));
             let _ = std::fs::remove_dir_all(&tmp);
-            // Blocking work (bz2 + tar of ~160 MB) off the async runtime.
+            // Blocking work (bz2 + tar) off the async runtime.
             let extract_res = {
                 let (archive, tmp) = (archive.clone(), tmp.clone());
                 tauri::async_runtime::spawn_blocking(move || {
@@ -234,13 +283,22 @@ async fn install_one(
                 .map_err(|e| format!("extract task failed: {e}"))?
             };
             let _ = std::fs::remove_file(&archive);
-            if let Err(e) = extract_res {
+            let finish = || -> Result<(), String> {
+                extract_res?;
+                // Sample wavs and export scripts aren't needed at runtime.
+                let _ = std::fs::remove_dir_all(tmp.join("test_wavs"));
+                for f in ["export-onnx.py", "test_onnx.py"] {
+                    let _ = std::fs::remove_file(tmp.join(f));
+                }
+                if m.id == ASR_ID {
+                    ensure_bpe_vocab(&tmp)?;
+                }
+                Ok(())
+            };
+            if let Err(e) = finish() {
                 let _ = std::fs::remove_dir_all(&tmp);
                 return Err(e);
             }
-            // Sample wavs and export scripts aren't needed at runtime.
-            let _ = std::fs::remove_dir_all(tmp.join("test_wavs"));
-            let _ = std::fs::remove_file(tmp.join("export-onnx.py"));
             let _ = std::fs::remove_dir_all(&target);
             std::fs::rename(&tmp, &target).map_err(|e| format!("Failed to finalize {sub}: {e}"))?;
             std::fs::write(target.join(".complete"), b"1")

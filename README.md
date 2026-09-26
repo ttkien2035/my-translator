@@ -19,6 +19,7 @@ A **real-time** speech translation app for macOS and Windows, tuned for **listen
 7. [Free packaging for friends](#free-packaging-for-friends)
 8. [Where your data lives](#where-your-data-lives)
 9. [Troubleshooting](#troubleshooting)
+- [Local model benchmarks](#local-model-benchmarks)
 10. [Architecture](#architecture)
 11. [Repository layout](#repository-layout)
 
@@ -33,7 +34,7 @@ A **real-time** speech translation app for macOS and Windows, tuned for **listen
 | ☁️ **Soniox** (recommended) | cloud | ~2 s | ~$0.12/hour | 70+ source languages; uses the course profile's **glossary** and context |
 | 🌏 **Qwen LiveTranslate** | cloud (Alibaba) | ~4 s | free (preview) | reachable from mainland China without a VPN; text only |
 | ⚡ **OpenAI Realtime** | cloud | ~2 s | ~$4/hour | translated voice output; needs a VPN in China |
-| 🖥️ **Local** (offline) | on device, pure Rust | ~2–3 s after each sentence | free | SenseVoice (speech recognition) + Tencent Hy-MT2-1.8B (dedicated translation model, Metal on Apple Silicon); the course glossary goes into the prompt |
+| 🖥️ **Local** (offline) | on device, pure Rust | ~1–2 s after each sentence | free | X-ASR Zipformer (speech recognition with punctuation; the course glossary becomes hotwords) + Tencent Hy-MT2-1.8B (dedicated translation model, Metal on Apple Silicon; glossary in the prompt) |
 
 Each engine's model name can be changed in **Cài đặt › Model** (Settings › Model), including a custom GGUF for Local. The same screen holds a **helper LLM** slot (DeepSeek / Qwen DashScope / Zhipu GLM / OpenAI / any OpenAI-compatible API) for the upcoming academic re-translation and summary features.
 
@@ -194,7 +195,7 @@ cd src-tauri
 cargo check && cargo clippy --all-targets      # must be warning-free
 cargo test                                     # tests that need no models
 # Local engine against real models (the app's installed model folder works):
-MT_TEST_SENSEVOICE_DIR=/path/sensevoice MT_TEST_GGUF=/path/Hy-MT2-1.8B-Q6_K.gguf \
+MT_TEST_XASR_DIR=/path/x-asr-zh-en-punct-int8 MT_TEST_GGUF=/path/Hy-MT2-1.8B-Q6_K.gguf \
   MT_TEST_WAV=/path/zh.wav cargo test --lib local:: -- --include-ignored --nocapture
 ```
 
@@ -202,8 +203,9 @@ Test environment variables:
 
 | Variable | Purpose |
 |---|---|
-| `MT_TEST_SENSEVOICE_DIR` | folder with `model.int8.onnx` + `tokens.txt` |
-| `MT_TEST_WAV` | 16 kHz mono s16le wav for the SenseVoice test (default `$MT_TEST_SENSEVOICE_DIR/test_wavs/zh.wav`). On macOS: `say -v Tingting "…" -o zh.aiff && afconvert -f WAVE -d LEI16@16000 -c 1 zh.aiff zh.wav` |
+| `MT_TEST_XASR_DIR` | extracted X-ASR folder (the app's `local-models/x-asr-zh-en-punct-int8` works) |
+| `MT_TEST_WAV` | 16 kHz mono s16le wav for the recognition test (default: first wav in `$MT_TEST_XASR_DIR/test_wavs`). On macOS: `say -v Tingting "…" -o zh.aiff && afconvert -f WAVE -d LEI16@16000 -c 1 zh.aiff zh.wav` |
+| `MT_TEST_VAD`, `MT_TEST_LONG_WAV` | Silero VAD model + a long noisy wav for `cargo test --release --test local_pipeline -- --ignored` (checks the 8–12 s utterance cut) |
 | `MT_TEST_GGUF` | GGUF file for the LLM test |
 | `MT_SETTINGS_DIR` | the app/tests read and write `settings.json` here instead of the real location, to test corrupt settings/`.bak` without touching yours |
 
@@ -301,20 +303,66 @@ In a dev build (`npm run dev`), DevTools shows the `[Soniox]`, `[Mic]` and `[Loc
 
 ---
 
+## Local model benchmarks
+
+Measured 2026-09-26 on an x86 CPU (4 threads for recognition, 8 for the LLM) with the same sherpa-onnx / llama.cpp calls the app makes; the harness and data are not in the repo. An M-chip is faster (QA measured the LLM at 0.4–0.5 s/sentence on Metal against 2 s here); compare rows, not absolute times.
+
+### Speech recognition (Mandarin) — mixed error rate, lower is better
+
+Test material: 100 utterances each from SpeechIO ZH00000 (finance talks), ZH00008 and ZH00025 (in-person lectures) and WenetSpeech `test_meeting` (far-field meetings); 80 "classroom" utterances = lecture speech with synthetic reverb (RT60 0.7 s) and student babble at 10 dB SNR; two real 25-minute lectures scored against human subtitles.
+
+| Model | Download | Finance talks | Lectures | Meetings | Classroom (sim.) | All 480 | Real lecture | Real lecture + room | ms/utt | Peak RSS |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **X-ASR zh-en punct int8** (chosen) | 136 MB | 2.6 % | 5.6 / 4.3 % | 9.6 % | 14.6 % | **6.8 %** | **8.2 %** | **11.3 %** | 65 | 578 MB |
+| SenseVoice-small int8 (previous) | 163 MB | 3.0 % | 4.6 / 5.4 % | 8.9 % | 16.6 % | 7.0 % | 8.9 % | 13.1 % | 68 | 354 MB |
+| FireRedASR2-AED int8 | 839 MB | 2.7 % | 3.3 / 4.0 % | 7.1 % | 11.3 % | 5.3 % | — | — | 1 016 | 1.75 GB |
+| FunASR-Nano int8 | 842 MB | 2.8 % | 4.8 / 4.3 % | 9.1 % | 15.3 % | 6.7 % | — | — | 465 | 1.7 GB |
+| Qwen3-ASR-0.6B int8 | 879 MB | 3.2 % | 6.2 / 4.6 % | 9.3 % | 14.6 % | 7.1 % | — | — | 645 | 1.96 GB |
+| zipformer-ctc-zh int8 | 301 MB | 4.2 % | 4.7 / 6.9 % | 9.1 % | 13.6 % | 7.2 % | — | — | 99 | 733 MB |
+| FireRedASR2-CTC int8 | 521 MB | 4.3 % | 7.2 / 6.2 % | 9.4 % | 17.1 % | 8.3 % | — | — | 508 | 970 MB |
+| SenseVoice 2025-09 / funasr-nano builds | 166–188 MB | 3.4–4.0 % | — | 10.6–11.1 % | 20.9–22.4 % | 9.1 % | — | — | 66 | — |
+| Paraformer-zh 2025 int8 | 228 MB | 3.3 % | 7.0 / 9.5 % | 12.4 % | 24.4 % | 10.4 % | — | — | 52 | 321 MB |
+
+FireRedASR2-AED is the most accurate but 15× slower and 5× the memory — it breaks the lightweight rule. X-ASR's streaming modes were not adopted: its own report shows 480 ms streaming at 9.1 % vs 7.1 % offline on WenetSpeech meeting.
+
+### Mic chain and glossary hotwords (X-ASR)
+
+| Configuration | Classroom (sim.) | Real lecture + room | Finance-term recall (143 terms, classroom) |
+|---|---|---|---|
+| high-pass 80 Hz only | 14.9 % | 11.3 % | 93.0 % |
+| + AGC | — | 12.3 % | — |
+| + GTCRN denoiser | 33.0 % | 15.4 % | 83.9 % |
+| + glossary hotwords (terms of ≥ 3 characters, score 2.0) | 14.9 % | 11.3 % | **99.3 %** (SenseVoice: 84.6 %) |
+
+Hence GTCRN and AGC are off by default (still available in Settings › Micro), and every glossary term of three or more Chinese characters becomes a hotword. Also found: under continuous babble, sherpa-onnx's VAD never reached its 8 s `max_speech_duration` cut (one 46 s segment — that much delay, and X-ASR aborts at ≥ 50 s); the pipeline now cuts an utterance itself at a quiet chunk after 8 s, at 12 s at the latest.
+
+### Translation (Chinese → Vietnamese) — 25 finance-lecture sentences, greedy decoding
+
+| Model | File | Sentences with untranslated Chinese | s/sentence (CPU) | Notes |
+|---|---|---|---|---|
+| **Hy-MT2-1.8B Q6_K** (chosen) | 1.47 GB | **0/25** | 1.4 | accurate numbers, follows the glossary |
+| Hy-MT2-1.8B Q4_K_M | 1.13 GB | 0/25 | 1.2 | dropped a digit ("3.2" → "3") |
+| Hy-MT2-7B Q4_K_M | 4.6 GB | 0/25 | 6.5–7.5 | best quality, too heavy |
+| Qwen2.5-3B-Instruct Q4_K_M (previous) | 2.1 GB | 15/25 | 2.0 | one sentence answered in English |
+| Qwen3-4B-Instruct-2507 Q4_K_M | 2.5 GB | 0/25 | 2.6–3.3 | content errors (bond → stock) |
+| Qwen3.5-4B Q4_K_M | 2.7 GB | 0/15 | 3.1 | wrong weekday |
+| Gemma-3-4B-it Q4_K_M | 2.5 GB | 0/15 | 2.4 | invented "dollars" |
+| Qwen3-1.7B Q4_K_M | 1.1 GB | 1/15 | 1.2 | number errors |
+
 ## Architecture
 
 ```
                   ┌ Soniox (WebSocket from the UI; profile glossary + context)
 Mic / system ─► Rust capture ─► DSP thread (resample · HPF · GTCRN · AGC · VAD) ─► binary IPC ─┼ Qwen LiveTranslate (Rust WS)
                                                                                                 ├ OpenAI Realtime (Rust WS)
-                                                                                                └ Local: Silero VAD → SenseVoice → Hy-MT2 (llama.cpp)
+                                                                                                └ Local: Silero VAD → X-ASR → Hy-MT2 (llama.cpp)
                                                                                                                       │
                                                          Live view · Notes · Library (Markdown + JSON)  ◄─────────────┘
 ```
 
 - **Tauri 2** (Rust backend; HTML/JS UI with no framework and no bundler)
 - **cpal** / **ScreenCaptureKit** / **WASAPI** capture; **coreaudio-rs** for Apple Voice Processing; **rubato** resampling
-- **sherpa-onnx**: Silero VAD, GTCRN noise suppression, SenseVoice recognition, Piper TTS
+- **sherpa-onnx**: Silero VAD, X-ASR recognition (hotwords from the glossary), GTCRN noise suppression (optional), Piper TTS
 - **llama-cpp-2** (llama.cpp): Hy-MT2-1.8B GGUF (any instruct GGUF as a custom model), Metal on Apple silicon
 - **reqwest / tokio-tungstenite** for the cloud engines
 
@@ -333,7 +381,7 @@ src/                     UI (plain HTML/CSS/JS, no bundler)
   js/glossary/           Chinese–English–Vietnamese finance glossary
 src-tauri/               Rust backend (Tauri 2)
   src/audio/             capture: cpal, ScreenCaptureKit, WASAPI, Apple Voice Processing, mic DSP
-  src/local/             offline engine: VAD → SenseVoice → Hy-MT2 (llama.cpp)
+  src/local/             offline engine: VAD → X-ASR → Hy-MT2 (llama.cpp)
   src/commands/          Tauri commands: cloud engines, TTS, sessions, model downloads
 docs/project-changelog.md  change history (CI uses it as release notes)
 docs/tts_guide*.md         text-to-speech guide (English / Vietnamese)
@@ -346,4 +394,4 @@ scripts/tauri-with-env.mjs dev/build wrapper (.env, ad-hoc signing, skips update
 
 ## Credits & license
 
-Lecture Edition by **ttkien2035**. Based on [My Translator](https://github.com/phuc-nt/my-translator) by Nguyễn Trọng Phúc — MIT License. The changes in this fork are MIT as well. Models: [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) (FunAudioLLM), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — each under its own license.
+Lecture Edition by **ttkien2035**. Based on [My Translator](https://github.com/phuc-nt/my-translator) by Nguyễn Trọng Phúc — MIT License. The changes in this fork are MIT as well. Models: [X-ASR](https://github.com/Gilgamesh-J/X-ASR) (SJTU et al., Apache-2.0), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — each under its own license.

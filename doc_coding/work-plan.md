@@ -254,3 +254,20 @@ Apple Voice Processing, Soniox reset 3 phút, Local trong app, ghi chú/đánh d
   - Cài đặt › Model › Local › Tải model: tải đúng `Hy-MT2-1.8B-Q6_K.gguf`, file Qwen cũ bị xoá.
   - `MT_TEST_GGUF=…/Hy-MT2-1.8B-Q6_K.gguf cargo test --release --lib local::llm -- --ignored --nocapture`. Ghi: thời gian load, ms/câu trên Metal (Qwen2.5 cũ: 0,4–0,5 s/câu) và thời gian warm-up lần đầu.
   - Dịch một buổi thật bằng Local: có còn câu lẫn chữ Hán không, tốc độ có theo kịp giảng viên không.
+
+---
+
+### Nhận dạng: SenseVoice-small → X-ASR Zipformer zh-en; micro mặc định — đã làm (kỹ sư trưởng, 2026-09-26; Kiên chốt)
+
+Số liệu đầy đủ: README › *Kết quả đo model Local* (10 model nhận dạng trên 480 câu + 2 bài giảng thật 25 phút; GTCRN/AGC; hotword).
+
+- **`models.rs`:** model `x-asr-zh-en-punct-int8` (asset sherpa-onnx `…zh-en-punct-int8-2026-06-03.tar.bz2`, 136 MB, SHA `5d02c36d…`, Apache-2.0). Sau khi giải nén, sinh `bpe.vocab` từ `bpe.model` (`spm.rs`, bộ đọc protobuf tối giản — đối chiếu với sentencepiece: 5 000 mục trùng khớp). Tải xong thì xoá `sensevoice-int8/` cũ.
+- **`asr.rs`:** transducer offline; hotword = thuật ngữ trong từ điển hồ sơ có ≥ 3 chữ Hán, mọi chữ nằm trong `tokens.txt`, ghi mỗi chữ cách nhau một dấu cách (BPE mới khớp token `▁X` model phát ra); `modified_beam_search`, 4 path, điểm 2,0. Không có thuật ngữ nào dùng được thì về `greedy_search`. Đầu ra bỏ dấu cách quanh chữ Hán/dấu câu ("不便 ， 所以" → "不便，所以"). Đoạn > 30 s chia đôi trước khi đưa vào model (X-ASR sập từ 50 s).
+- **`pipeline.rs`, ngắt câu:** `max_speech_duration` của sherpa chỉ nới điều kiện kết thúc; dưới tiếng ồn liên tục đo được đoạn 46 s. Nay `Cutter`: quá 8 s thì `vad.flush()` ở chunk có mức thấp hơn đỉnh ≥ 15 dB, quá 12 s thì ngắt ngay. Test tích hợp `tests/local_pipeline.rs` (ignored) chạy đúng file từng gây sập: 130 s → 12 câu, 0 lỗi (trước: 4 câu rồi sập).
+- **`settings.rs`:** `mic_denoise` và `mic_agc` mặc định tắt; thêm `settings_schema` (=2), file cũ được chuyển đổi một lần khi nạp (tắt hai mục đó, giữ nguyên các lựa chọn khác); có unit test.
+- **Không làm:** chế độ streaming của X-ASR (Kiên chốt sau khi xem số: 480 ms streaming lỗi 9,1 % so với 7,1 % offline).
+- **QA trên Mac cần đo:**
+  - Cài đặt › Model › Local › Tải model: tải `x-asr-zh-en-punct-int8/` (có `bpe.vocab`, `.complete`), thư mục SenseVoice cũ bị xoá.
+  - `MT_TEST_XASR_DIR=… cargo test --release --lib local:: -- --ignored --nocapture`: ms/câu trên chip M (x86: 65 ms greedy, 79 ms có hotword).
+  - Dịch một buổi thật bằng Local với hồ sơ có từ điển tài chính: thuật ngữ có ra đúng không; câu có bị cắt giữa từ khi lớp ồn không (dấu hiệu của `Cutter`: câu dài đúng 8–12 s).
+  - Cài đặt › Micro: sau khi cập nhật, Khử ồn và AGC phải hiện tắt.

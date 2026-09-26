@@ -23,24 +23,26 @@ cargo test
 
 ## Test với model thật
 
-Tạo wav tiếng Trung 16 kHz mono từ TTS macOS (voice `Tingting` có sẵn):
+Model đã tải trong app dùng được trực tiếp. Tạo wav tiếng Trung 16 kHz mono từ TTS macOS (voice `Tingting` có sẵn):
 
 ```bash
 S=/path/to/scratch
-mkdir -p "$S/sv/test_wavs"
 M="$HOME/Library/Application Support/My Translator/local-models"
-ln -sf "$M/sensevoice-int8/model.int8.onnx" "$S/sv/model.int8.onnx"
-ln -sf "$M/sensevoice-int8/tokens.txt"      "$S/sv/tokens.txt"
 say -v Tingting "资产负债表反映企业在某一特定日期的财务状况。这个公式期末考试会考，大家注意一下。" -o "$S/zh.aiff"
-afconvert -f WAVE -d LEI16@16000 -c 1 "$S/zh.aiff" "$S/sv/test_wavs/zh.wav"
+afconvert -f WAVE -d LEI16@16000 -c 1 "$S/zh.aiff" "$S/zh.wav"
 ```
 
 Lưu ý: voice `Eddy` (đầu danh sách `say -v '?'`) không cài sẵn, cho ra wav gần rỗng.
 
 ```bash
 cd src-tauri
-MT_TEST_SENSEVOICE_DIR="$S/sv" cargo test --lib local::asr -- --ignored --nocapture
+# nhận dạng X-ASR (+ hotword) và bộ đọc bpe.model
+MT_TEST_XASR_DIR="$M/x-asr-zh-en-punct-int8" MT_TEST_WAV="$S/zh.wav" cargo test --release --lib local:: -- --ignored --nocapture
+# dịch Hy-MT2
 MT_TEST_GGUF="$M/Hy-MT2-1.8B-Q6_K.gguf" cargo test --release --lib local::llm -- --ignored --nocapture
+# ngắt câu 8–12 s dưới tiếng ồn liên tục (cần một wav dài ≥ 330 s có giọng nói + ồn; ghi âm lớp học thật là tốt nhất)
+MT_TEST_XASR_DIR="$M/x-asr-zh-en-punct-int8" MT_TEST_VAD="$HOME/Library/Application Support/My Translator/audio-models/silero_vad.onnx" \
+  MT_TEST_LONG_WAV="$S/lecture.wav" cargo test --release --test local_pipeline -- --ignored --nocapture
 ```
 
 Lọc bớt log ggml/llama: `2>&1 | grep -vE "^ggml_|^llama_|^load|^print_info"`.

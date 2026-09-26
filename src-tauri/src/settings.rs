@@ -166,7 +166,14 @@ pub struct Settings {
     pub mic_denoise: bool,
     /// Silero VAD gate: send only speech (saves STT cost; needs the model).
     pub mic_vad: bool,
+    /// Bumped when a default changes for existing installs; files below the
+    /// current value get `migrated()` applied on load.
+    #[serde(default)]
+    pub settings_schema: u32,
 }
+
+/// 2: GTCRN and AGC off by default (2026-09-26).
+const SETTINGS_SCHEMA: u32 = 2;
 
 impl Default for Settings {
     fn default() -> Self {
@@ -219,9 +226,11 @@ impl Default for Settings {
             engine_picker_done: false,
             mic_voice_processing: false,
             mic_highpass: true,
-            mic_agc: true,
-            mic_denoise: true,
+            // Both measured harmful on lecture audio (see Settings › Micro hint).
+            mic_agc: false,
+            mic_denoise: false,
             mic_vad: false,
+            settings_schema: SETTINGS_SCHEMA,
         }
     }
 }
@@ -281,7 +290,22 @@ impl Settings {
             return Err("file does not exist".to_string());
         }
         let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).map_err(|e| e.to_string())
+        serde_json::from_str::<Self>(&content)
+            .map(Self::migrated)
+            .map_err(|e| e.to_string())
+    }
+
+    /// Apply default changes that older files should pick up.
+    fn migrated(mut self) -> Self {
+        if self.settings_schema < 2 {
+            // GTCRN doubled recognition errors in a reverberant classroom with
+            // student babble (16.6 % → 33.6 %), AGC gave no gain even on
+            // audio 20 dB too quiet; both had been on by default.
+            self.mic_denoise = false;
+            self.mic_agc = false;
+        }
+        self.settings_schema = SETTINGS_SCHEMA;
+        self
     }
 
     /// Save settings to disk atomically (tmp + fsync + rename), keeping the
@@ -350,5 +374,22 @@ mod tests {
         // Explicit value round-trips.
         let explicit: Settings = serde_json::from_str(r#"{"engine_picker_done":false}"#).unwrap();
         assert!(!explicit.engine_picker_done);
+    }
+
+    #[test]
+    fn mic_defaults_migrate_once() {
+        let d = Settings::default();
+        assert!(!d.mic_denoise && !d.mic_agc && d.mic_highpass);
+        assert_eq!(d.settings_schema, SETTINGS_SCHEMA);
+        // A pre-schema file with the old defaults on: turned off once.
+        let old: Settings = serde_json::from_str(r#"{"mic_denoise":true,"mic_agc":true,"mic_highpass":false}"#).unwrap();
+        let old = old.migrated();
+        assert!(!old.mic_denoise && !old.mic_agc);
+        assert!(!old.mic_highpass, "unrelated choices are kept");
+        assert_eq!(old.settings_schema, SETTINGS_SCHEMA);
+        // A current file where the user turned them back on: left alone.
+        let cur: Settings = serde_json::from_str(r#"{"settings_schema":2,"mic_denoise":true,"mic_agc":true}"#).unwrap();
+        let cur = cur.migrated();
+        assert!(cur.mic_denoise && cur.mic_agc);
     }
 }

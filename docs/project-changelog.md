@@ -34,14 +34,15 @@ Bản phát hành miễn phí, không ký bằng Apple Developer ID, nên macOS 
 - **Hồ sơ môn học** + từ điển tài chính Trung–Anh–Việt 278 thuật ngữ, nạp vào Soniox (`terms` / `translation_terms`); đổi hồ sơ giữa giờ áp dụng ngay.
 - **Ghi chú trong buổi** (`⌘⇧N`), chép câu (`⌘⇧C`), đánh dấu ⭐ ❓ 📝 (`⌘⇧1/2/3`), tự đánh dấu 📝 khi giảng viên nói 会考/考点…
 - **Thư viện ôn bài**: đọc lại từng câu, đánh dấu và viết tiếp ghi chú sau giờ học, lọc/tìm, nhảy tới câu.
-- **Engine Local thuần Rust**: SenseVoice-small (sherpa-onnx) + Hy-MT2-1.8B của Tencent (model chuyên dịch, llama.cpp, Metal); bỏ Python/MLX; model chỉ tải khi bấm "Tải model" (1,6 GB, SHA-256). Chọn Hy-MT2 thay Qwen2.5-3B sau khi đo trên 25 câu bài giảng: không còn câu lẫn chữ Hán (Qwen2.5: 15/25), nhanh hơn, file nhỏ hơn.
-- **Micro cho lớp học**: resample chống aliasing, lọc 80 Hz, khử ồn GTCRN, AGC, VAD Silero, Apple Voice Processing (macOS).
+- **Engine Local thuần Rust**: X-ASR Zipformer zh-en (sherpa-onnx; có dấu câu; thuật ngữ trong từ điển môn học thành hotword) + Hy-MT2-1.8B của Tencent (model chuyên dịch, llama.cpp, Metal); bỏ Python/MLX; model chỉ tải khi bấm "Tải model" (1,6 GB, SHA-256). Cả hai model được chọn sau khi đo (README › *Kết quả đo model Local*): X-ASR ít lỗi hơn SenseVoice-small trên bài giảng thật và giảng đường mô phỏng, nhận đúng 99 % thuật ngữ tài chính nhờ hotword; Hy-MT2 không còn câu lẫn chữ Hán (Qwen2.5-3B: 15/25).
+- **Micro cho lớp học**: resample chống aliasing, lọc 80 Hz, VAD Silero, Apple Voice Processing (macOS); khử ồn GTCRN và AGC có sẵn nhưng tắt mặc định — đo trên bài giảng thật: GTCRN làm nhận dạng sai gấp đôi trong phòng vang có tiếng sinh viên, AGC không giúp gì.
 - **Cài đặt › Model**: chọn engine và tên model, ô LLM hỗ trợ (DeepSeek / DashScope / Zhipu / OpenAI / tuỳ chỉnh).
 - **Giao diện sáng (mặc định) / tối / theo hệ thống** — Cài đặt › Hiển thị hoặc menu ⋯; mọi màu chữ đạt tương phản WCAG AA ở cả hai giao diện; chữ bản dịch mặc định 18 px.
 - **Giao diện macOS**: cửa sổ thường (không còn luôn nằm trên), traffic lights gốc, font hệ thống, nền đặc, cửa sổ nổi ⤢ khi chiếu slide; màn hình chính tiếng Việt; modal chọn engine chỉ lần đầu.
 
 ### Sửa
 - Soniox mất chữ mỗi lần tự nối lại 3 phút; VAD cắt mất phụ âm đầu câu; câu rác từ khoảng lặng.
+- Engine Local: trong tiếng ồn liên tục, VAD không ngắt câu ở 8 s (đo được một đoạn 46 s → dịch trễ 46 s; X-ASR sập từ 50 s). Pipeline nay tự ngắt ở chỗ lặng sau 8 s, chậm nhất 12 s.
 - Cài đặt "Opacity" làm mờ toàn bộ giao diện còn 85 % (chữ nhạt đi, tốn thêm một lớp GPU) — đã bỏ, giao diện luôn đặc.
 - `settings.json` có thể bị xoá sạch; `.bak` có thể bị ghi đè bởi file hỏng; từ điển (`general` / `terms` / `text`) không được lưu.
 - Rò session OpenAI/Qwen; TTS vẫn đọc sau khi tạm dừng; TTS tự tắt khi lưu cài đặt; khoá API bị ghi ra log.

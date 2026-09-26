@@ -13,6 +13,9 @@ pub mod test_api {
     /// P1/P2/P5 — Local pipeline with a closure sink and an optional stub
     /// translator (`start_with_translator`).
     pub use crate::local::llm::TranslateRequest;
+    /// X-ASR file layout inside an extracted model folder, and the
+    /// `bpe.vocab` writer the hotword encoder needs.
+    pub use crate::local::models::{ensure_bpe_vocab, AsrFiles};
     pub use crate::local::pipeline::{
         start_with_sink, start_with_translator, LocalEvent, Session, SessionConfig, Translator,
         TranslatorFactory, UTTERANCE_QUEUE_MAX,

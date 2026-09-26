@@ -79,32 +79,45 @@ pub fn audio_models_status() -> Vec<AudioModelStatus> {
 #[tauri::command]
 pub async fn audio_models_download(on_progress: Channel<DownloadProgress>) -> Result<(), String> {
     let _guard = InFlightGuard::acquire("audio-models")?;
+    let client = client()?;
+    for m in &MODELS {
+        install(&client, m.id, &on_progress).await?;
+    }
+    Ok(())
+}
+
+/// Install one model if missing, reporting progress on `on_progress`.
+/// Callers hold the "audio-models" in-flight guard.
+pub async fn install(
+    client: &reqwest::Client,
+    id: &str,
+    on_progress: &Channel<DownloadProgress>,
+) -> Result<(), String> {
+    let Some(m) = entry(id) else {
+        return Err(format!("unknown audio model {id}"));
+    };
+    if installed_path(m.id).is_some() {
+        return Ok(());
+    }
     let dir = models_dir();
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create models dir: {e}"))?;
-    let client = client()?;
-
-    for m in &MODELS {
-        if installed_path(m.id).is_some() {
-            continue;
-        }
-        let emit = |phase: &str, received: u64, message: Option<String>| {
-            let _ = on_progress.send(DownloadProgress {
-                id: m.id.to_string(),
-                phase: phase.to_string(),
-                received,
-                total: m.size,
-                message,
-            });
-        };
-        let result = download_file(&client, &[m.url], &dir.join(m.file), m.sha256, m.size, &|r| {
-            emit("downloading", r, None)
-        })
-        .await;
-        if let Err(e) = result {
-            emit("error", 0, Some(e.clone()));
-            return Err(e);
-        }
-        emit("done", m.size, None);
+    let emit = |phase: &str, received: u64, message: Option<String>| {
+        let _ = on_progress.send(DownloadProgress {
+            id: m.id.to_string(),
+            phase: phase.to_string(),
+            received,
+            total: m.size,
+            message,
+        });
+    };
+    let result = download_file(client, &[m.url], &dir.join(m.file), m.sha256, m.size, &|r| {
+        emit("downloading", r, None)
+    })
+    .await;
+    if let Err(e) = result {
+        emit("error", 0, Some(e.clone()));
+        return Err(e);
     }
+    emit("done", m.size, None);
     Ok(())
 }

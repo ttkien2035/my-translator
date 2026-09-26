@@ -92,19 +92,19 @@ Each engine's model name can be changed in **Cài đặt › Model** (Settings �
 
 > Sharing the app with friends: send **[docs/huong-dan-cai-dat.pdf](docs/huong-dan-cai-dat.pdf)** along with the DMG — a 3-page Vietnamese guide to installing, setting up, using the app in class and fixing common problems (Markdown source: [docs/huong-dan-cai-dat.md](docs/huong-dan-cai-dat.md); rebuild the PDF with `python3 scripts/build-guide-pdf.py`).
 
-**Requirements:** macOS 13 or later. Apple silicon (M1–M4) works best; Intel works too (Local is slower).
+**Requirements:** macOS 13 or later. Apple silicon (M1 or later) works best; Intel works too (Local is slower).
 
 1. Open **[Releases](https://github.com/ttkien2035/meowlaoshi/releases/latest)** and download the right file:
 
    | Your machine | File |
    |---|---|
-   | Mac with Apple silicon (M1/M2/M3/M4) | `MeowLaoshi_<version>_aarch64.dmg` |
+   | Mac with Apple silicon (M1 or later) | `MeowLaoshi_<version>_aarch64.dmg` |
    | Intel Mac | `MeowLaoshi_<version>_x64.dmg` |
    | Windows 10/11 | `MeowLaoshi_<version>_x64-setup.exe` |
 
    To check your chip:  → **About This Mac** → *Chip*.
 
-2. Open the `.dmg`, drag **MeowLaoshi** into **Applications**, then eject it.
+2. Open the `.dmg` and drag **MeowLaoshi** into **Applications** as the arrow in its window shows, then close the window.
 
 3. First launch. Releases are **free**, not signed with an Apple Developer ID, so macOS blocks the first launch:
    1. Open the app → macOS says it can't be opened → click **Done**.
@@ -121,14 +121,14 @@ No Python, Homebrew or anything else to install.
 
 ## First-time setup
 
-1. **Cài đặt › Engine dịch** (Settings › Translation engine): paste a **Soniox** API key. Create one at [console.soniox.com](https://console.soniox.com); $10 covers ~80 hours. Source **Chinese** → target **Vietnamese** is the default.
-2. **Hồ sơ môn học** (Course profiles, same screen):
-   1. Press **+** to add a profile for your subject, e.g. *Corporate Finance*.
-   2. Press **📚 Nạp từ điển tài chính Trung–Việt** (load the finance glossary).
-   3. Add your lecturer's own terms if needed, then **save**.
-3. **Cài đặt › Micro** (Settings › Microphone): press **Tải model** (1.2 MB) — the VAD model the Local engine needs. Keep the defaults: 80 Hz high-pass on, noise suppression and AGC **off** (measured on real lectures, both made recognition worse in a reverberant room with student chatter); turn VAD on for lectures with long pauses.
-4. (Optional) **Cài đặt › Model › Local › Tải model** (1.6 GB, once) for offline translation without network or VPN.
-5. On the Live bar, choose the **🎤 Micro** source and your course profile, then press **▶ Bắt đầu** (Start).
+The first launch opens a four-step guide; every step can be skipped and redone later in **Cài đặt** (Settings):
+
+1. **Soniox key** — paste it and press **Kiểm tra key** (Check key): the app connects right away and confirms. No key? Choose **Chưa có key** (No key yet) and use the offline engine.
+2. **Offline pack** — one 1.6 GB download (speech recognition, translation, sentence detection) so Local works without network or VPN. It downloads in the background with a progress chip.
+3. **Subject** — *Tài chính – kinh tế* (finance & economics) creates a course profile with the ~480-term glossary; *Môn khác* (other) starts empty.
+4. **Microphone test** — grants the macOS permission and shows a live level meter.
+
+With a key the app starts on Soniox, otherwise on Local. Whenever something is missing later (a key, the offline pack, microphone permission, the network), the app shows a dialog with the button that fixes it. Mic defaults: 80 Hz high-pass on, noise suppression and AGC **off** — measured on real lectures, both made recognition worse in a reverberant room with student chatter.
 
 ---
 

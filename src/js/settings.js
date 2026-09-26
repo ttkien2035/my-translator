@@ -60,8 +60,8 @@ const DEFAULT_SETTINGS = {
   // Settings → Micro (mirror settings.rs defaults)
   mic_voice_processing: false,
   mic_highpass: true,
-  mic_agc: true,
-  mic_denoise: true,
+  mic_agc: false,
+  mic_denoise: false,
   mic_vad: false,
 };
 

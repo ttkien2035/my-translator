@@ -4,6 +4,7 @@
  */
 
 import { settingsManager } from './settings.js';
+import { openDialog, ensureOfflinePack, downloadOfflinePack, offlinePackStatus, askApiKey, showMicPermissionDialog, MicSilenceWatch, runFirstRunWizard } from './onboarding.js';
 import { TranscriptUI } from './ui.js';
 import { sonioxClient } from './soniox.js';
 import { elevenLabsTTS } from './elevenlabs-tts.js';
@@ -214,6 +215,13 @@ class App {
         document.getElementById('btn-settings').addEventListener('click', () => {
             this._showView('settings');
         });
+        // Any change the user makes in Settings is saved when the screen is
+        // left, whichever way (programmatic form fills are not "trusted").
+        const settingsView = document.getElementById('settings-view');
+        const markDirty = (e) => { if (e.isTrusted) this._settingsDirty = true; };
+        settingsView.addEventListener('input', markDirty, true);
+        settingsView.addEventListener('change', markDirty, true);
+        document.addEventListener('offline-pack-changed', () => this._refreshLocalModelsStatus());
 
         // Back from settings
         document.getElementById('btn-back').addEventListener('click', () => {
@@ -425,15 +433,6 @@ class App {
         this._bindProfileUi();
         this._bindNotes();
 
-        // Welcome-screen engine cards: pick a class (standard / openai),
-        // remember it, hide the picker, sync the rest of the UI.
-        document.querySelectorAll('#engine-picker .engine-card').forEach(card => {
-            card.addEventListener('click', () => {
-                this._selectEngineClass(card.dataset.engineClass);
-                this._hideEnginePicker();
-            });
-        });
-
         // Toolbar engine pill: same switch, available any time the session isn't
         // running. While running, the pill is locked (visual feedback only).
         document.querySelectorAll('#engine-pill .engine-pill-btn').forEach(btn => {
@@ -637,9 +636,7 @@ class App {
             this._updateStatus(status);
         };
 
-        sonioxClient.onError = (error) => {
-            this._showToast(error, 'error');
-        };
+        sonioxClient.onError = (error, kind) => this._onSonioxError(error, kind);
 
         sonioxClient.onConfidence = (avgConfidence) => {
             this.transcriptUI.setConfidence(avgConfidence);
@@ -774,11 +771,17 @@ class App {
     // ─── Views ──────────────────────────────────────────────
 
     _showView(view) {
+        const settingsEl = document.getElementById('settings-view');
+        if (view !== 'settings' && settingsEl.classList.contains('active') && this._settingsDirty) {
+            this._settingsDirty = false;
+            this._saveSettingsFromForm({ quiet: true, stay: true });
+        }
         document.getElementById('overlay-view').classList.toggle('active', view === 'overlay');
         document.getElementById('settings-view').classList.toggle('active', view === 'settings');
 
         if (view === 'settings') {
             this._populateSettingsForm();
+            this._settingsDirty = false;
             this._showSettingsScreen('settings-home'); // wizard always opens at home
         }
         // Returning to the overlay while in Read mode: a voice/provider may have
@@ -1220,7 +1223,8 @@ class App {
         }
     }
 
-    async _saveSettingsFromForm() {
+    async _saveSettingsFromForm({ quiet = false, stay = false } = {}) {
+        this._settingsDirty = false;
         const settings = {
             soniox_api_key: document.getElementById('input-api-key').value.trim(),
             openai_api_key: document.getElementById('input-openai-key')?.value.trim() || '',
@@ -1271,8 +1275,8 @@ class App {
 
         try {
             await settingsManager.save(settings);
-            this._showToast('Đã lưu cài đặt', 'success');
-            this._showView('overlay');
+            this._showToast(quiet ? 'Đã lưu thay đổi' : 'Đã lưu cài đặt', 'success');
+            if (!stay) this._showView('overlay');
         } catch (err) {
             this._showToast(`Lưu thất bại: ${err}`, 'error');
         }
@@ -2407,10 +2411,13 @@ class App {
                 ? currentMode : 'soniox';
         }
 
-        settingsManager.save({ translation_mode: nextMode });
+        const saved = settingsManager.save({ translation_mode: nextMode });
         const select = document.getElementById('select-translation-mode');
         if (select) select.value = nextMode;
         this._updateModeUI(nextMode);
+        // Callers that start right after switching await this, so start()
+        // reads the new mode rather than the one being replaced.
+        return saved;
     }
 
     _updatePillState(mode) {
@@ -2453,13 +2460,30 @@ class App {
         }
     }
 
-    _maybeShowEnginePicker() {
-        // First run only (settings.engine_picker_done). Answered by clicking a
-        // card or by the first Start; afterwards the toolbar pill switches.
+    async _maybeShowEnginePicker() {
+        // First run only (settings.engine_picker_done): the onboarding wizard
+        // (Soniox key → offline pack → subject → mic test). Afterwards the
+        // toolbar pill switches engines.
         if (this._enginePickerDismissed || settingsManager.get().engine_picker_done) return;
         if (this.isRunning || this.isStarting) return;
         if (this.transcriptUI && this.transcriptUI.hasContent()) return;
-        this._showEnginePicker();
+        this._enginePickerDismissed = true;
+        const { mode } = await runFirstRunWizard({ pingSoniox: (k) => this._pingSoniox(k) });
+        const s = settingsManager.get();
+        this.currentSource = s.audio_source || 'microphone';
+        this._updateSourceButtons();
+        await this._selectEngineClass(mode);
+        this._renderProfileSelects?.();
+        this._refreshLocalModelsStatus();
+        this._pulseStartButton();
+    }
+
+    /** Draw the eye to Start once, after onboarding (no motion if reduced). */
+    _pulseStartButton() {
+        const btn = document.getElementById('btn-start');
+        if (!btn) return;
+        btn.classList.add('attention');
+        setTimeout(() => btn.classList.remove('attention'), 6000);
     }
 
     _updateModeUI(mode) {
@@ -2504,7 +2528,7 @@ class App {
             const warn = localUnsupported || !!missingKey;
             hintSoniox.classList.toggle('hint-warning', warn);
             if (localUnsupported) {
-                hintSoniox.textContent = '⚠️ Local cần tải model (Cài đặt › Model › Local › Tải model) rồi mới bắt đầu được.';
+                hintSoniox.textContent = '⚠️ Cần tải gói offline — bấm Bắt đầu, app sẽ hỏi tải.';
             } else if (missingKey) {
                 hintSoniox.textContent = `⚠️ ${missingKey} cần API key — nhập key bên dưới rồi mới bắt đầu được.`;
             }
@@ -2737,39 +2761,26 @@ class App {
     // ─── Start/Stop ────────────────────────────────────────
 
     async start() {
-        const settings = settingsManager.get();
+        let settings = settingsManager.get();
         this.translationMode = settings.translation_mode || 'soniox';
         // Never log the settings object — it contains every API key.
         console.log('[App] start() called, translation_mode:', this.translationMode,
             'source:', settings.audio_source, 'langs:', `${settings.source_language}→${settings.target_language}`);
 
-        // Local engine needs its models on disk (checked again in _startLocalMode).
-        if (this.translationMode === 'local' && this._localModelsReady === false) {
-            this._showToast('Local cần tải model trước (Cài đặt › Model › Local)', 'error');
-            this._showView('settings');
-            this._showSettingsScreen('tab-model');
-            return;
+        // Whatever is missing gets a dialog with the button that fixes it;
+        // once fixed, starting simply continues.
+        if (this.translationMode === 'local' && !(await this._refreshLocalModelsStatus())) {
+            if (!(await ensureOfflinePack())) return;
+            await this._refreshLocalModelsStatus();
         }
-
-        // Check Soniox API key only for cloud mode
-        if (this.translationMode === 'soniox' && !settings.soniox_api_key) {
-            this._showToast('Cần API key Soniox — nhập trong Cài đặt', 'error');
-            this._showView('settings');
-            return;
-        }
-
-        // Check OpenAI API key for openai mode
-        if (this.translationMode === 'openai' && !settings.openai_api_key) {
-            this._showToast('Cần API key OpenAI — nhập trong Cài đặt', 'error');
-            this._showView('settings');
-            return;
-        }
-
-        // Check Qwen API key for qwen mode
-        if (this.translationMode === 'qwen' && !settings.qwen_api_key) {
-            this._showToast('Cần API key Qwen (DashScope) — nhập trong Cài đặt', 'error');
-            this._showView('settings');
-            return;
+        const keyFor = { soniox: 'soniox_api_key', openai: 'openai_api_key', qwen: 'qwen_api_key' }[this.translationMode];
+        if (keyFor && !(settings[keyFor] || '').trim()) {
+            const ping = this.translationMode === 'soniox' ? (k) => this._pingSoniox(k)
+                : this.translationMode === 'openai' ? (k) => this._pingOpenAi(k) : null;
+            const r = await askApiKey(this.translationMode, { ping });
+            if (r === 'offline') { await this._selectEngineClass('local'); return this.start(); }
+            if (r !== 'saved') return;
+            settings = settingsManager.get();
         }
 
         // Check ElevenLabs key only if TTS is enabled AND provider is elevenlabs
@@ -2782,6 +2793,7 @@ class App {
         this.isRunning = true;
         this._updateStartButton();
         this._hideEnginePicker();
+        this._armMicWatch(settings);
         this._setEnginePillLocked(true);
         if (!this.recordingStartTime) this.recordingStartTime = Date.now();
 
@@ -2903,6 +2915,7 @@ class App {
             const channel = new window.__TAURI__.core.Channel();
             channel.onmessage = (pcmData) => {
                 audioBatchCount++;
+                this._micWatch?.feed(pcmData);
                 if (audioBatchCount <= 3 || audioBatchCount % 50 === 0) {
                     console.log(`[OpenAI capture] batch #${audioBatchCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
@@ -2986,6 +2999,7 @@ class App {
             const channel = new window.__TAURI__.core.Channel();
             channel.onmessage = (pcmData) => {
                 audioBatchCount++;
+                this._micWatch?.feed(pcmData);
                 if (audioBatchCount <= 3 || audioBatchCount % 50 === 0) {
                     console.log(`[Qwen capture] batch #${audioBatchCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
@@ -3030,6 +3044,7 @@ class App {
             const channel = new window.__TAURI__.core.Channel();
             channel.onmessage = (pcmData) => {
                 audioChunkCount++;
+                this._micWatch?.feed(pcmData);
                 if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
                     console.log(`[Audio] Batch #${audioChunkCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
@@ -3056,13 +3071,10 @@ class App {
         this.transcriptUI.provider = 'soniox';
         this._updateStatus('connecting');
 
-        // Models are downloaded from Settings › Model › Local; never start a
-        // session that can't run.
+        // Never start a session that can't run (start() normally checked already).
         if (!(await this._refreshLocalModelsStatus())) {
-            this._showToast('Local cần tải model trước (Cài đặt › Model › Local)', 'error');
-            this._showView('settings');
-            this._showSettingsScreen('tab-model');
             await this.pause();
+            if (await ensureOfflinePack()) { await this._refreshLocalModelsStatus(); this.start(); }
             return;
         }
 
@@ -3120,9 +3132,13 @@ class App {
             });
         } catch (err) {
             console.error('Failed to start Local engine:', err);
-            this._showToast(`Local: ${String(err).replace(/^models_missing:\s*/, '')}`, 'error');
             this.localClient = null;
             await this.pause();
+            if (/^models_missing/.test(String(err))) {
+                if (await ensureOfflinePack()) { await this._refreshLocalModelsStatus(); this.start(); }
+            } else {
+                this._showToast(`Chế độ offline không khởi động được: ${err}`, 'error');
+            }
             return;
         }
 
@@ -3133,6 +3149,7 @@ class App {
             let audioChunkCount = 0;
             audioChannel.onmessage = (pcmData) => {
                 audioChunkCount++;
+                this._micWatch?.feed(pcmData);
                 if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
                     console.log(`[Local] Audio batch #${audioChunkCount}, size:`, pcmData?.byteLength ?? pcmData?.length ?? 0);
                 }
@@ -3158,8 +3175,8 @@ class App {
             this._localModelsReady = missing.length === 0;
             if (el) {
                 el.textContent = this._localModelsReady
-                    ? `● đã cài${this.isAppleSilicon ? ' · Metal' : ''}`
-                    : `○ chưa tải (${(missing.reduce((a, m) => a + m.size, 0) / 1073741824).toFixed(1)} GB)`;
+                    ? `● Offline: sẵn sàng${this.isAppleSilicon ? ' · Metal' : ''}`
+                    : `○ Offline: chưa tải (${(missing.reduce((a, m) => a + m.size, 0) / 1e9).toFixed(1).replace('.', ',')} GB)`;
                 el.classList.toggle('ok', this._localModelsReady);
             }
             if (btn) btn.style.display = this._localModelsReady ? 'none' : '';
@@ -3175,28 +3192,72 @@ class App {
         const btn = document.getElementById('btn-local-models-download');
         const progress = document.getElementById('local-models-progress');
         if (btn) btn.disabled = true;
-        const onProgress = new Channel();
-        onProgress.onmessage = (msg) => {
-            if (!progress) return;
-            const short = msg.id.startsWith('x-asr') ? 'X-ASR' : 'Hy-MT2';
-            if (msg.phase === 'downloading' && msg.total > 0) {
-                progress.textContent = `${short}: ${Math.floor((msg.received / msg.total) * 100)}% (${(msg.received / 1048576).toFixed(0)} MB)`;
-            } else if (msg.phase === 'extracting') {
-                progress.textContent = `${short}: đang giải nén…`;
-            } else if (msg.phase === 'done') {
-                progress.textContent = `${short}: ✓`;
-            }
-        };
         try {
-            await invoke('local_models_download', { onProgress });
-            this._showToast('Đã tải model Local (X-ASR + Hy-MT2) ✓', 'success');
+            await downloadOfflinePack((st) => { if (progress) progress.textContent = `${Math.floor(st.frac * 100)} % · ${st.text}`; });
+            this._showToast('Đã tải gói offline ✓', 'success');
             if (progress) progress.textContent = '';
         } catch (err) {
-            this._showToast(`Tải model thất bại: ${err}`, 'error');
+            if (progress) progress.textContent = err.message;
         } finally {
             if (btn) btn.disabled = false;
             await this._refreshLocalModelsStatus();
         }
+    }
+
+    /** Arm the denied-microphone detector for this Start (mic sources only). */
+    _armMicWatch(settings) {
+        this._micWatch = null;
+        // The VAD gate sends only speech, so silence there is normal.
+        if (this.currentSource === 'system' || settings.mic_vad) return;
+        this._micWatch = new MicSilenceWatch(async () => {
+            if (!this.isRunning) return;
+            await this.pause();
+            if ((await showMicPermissionDialog()) === 'retry') this.start();
+        });
+    }
+
+    /** Soniox trouble with a way out: re-enter the key, or fall back to offline. */
+    async _onSonioxError(message, kind) {
+        if (kind === 'auth' || kind === 'credits') {
+            if (this._sonioxDialogOpen) return;
+            this._sonioxDialogOpen = true;
+            try {
+                if (this.isRunning) await this.pause();
+                const reason = kind === 'auth' ? 'Soniox từ chối key hiện tại.' : 'Key Soniox đã hết hạn mức sử dụng. Hãy hỏi người đã cấp key cho bạn.';
+                const r = await askApiKey('soniox', { reason, ping: (k) => this._pingSoniox(k) });
+                if (r === 'saved') this.start();
+                else if (r === 'offline') { await this._selectEngineClass('local'); this.start(); }
+            } finally { this._sonioxDialogOpen = false; }
+            return;
+        }
+        if (kind === 'lost') {
+            if (this._sonioxDialogOpen || !this.isRunning) return;
+            this._sonioxDialogOpen = true;
+            try {
+                await this.pause();
+                const pack = await offlinePackStatus().catch(() => ({ ready: false }));
+                await new Promise((resolve) => {
+                    const toOffline = async (c) => {
+                        c.close(); resolve();
+                        if (await ensureOfflinePack()) { await this._selectEngineClass('local'); this.start(); }
+                    };
+                    openDialog({
+                        icon: '📡',
+                        title: 'Mất kết nối tới Soniox',
+                        body: [Object.assign(document.createElement('p'), { className: 'dlg-text', textContent: pack.ready
+                            ? 'Kiểm tra Wi-Fi hoặc VPN. Trong lúc chờ, bạn có thể dịch tiếp bằng chế độ offline trên máy.'
+                            : 'Kiểm tra Wi-Fi hoặc VPN rồi thử lại. Muốn dịch cả khi mất mạng, hãy tải gói offline.' })],
+                        onDismiss: resolve,
+                        actions: [
+                            { label: 'Thử lại', kind: 'secondary', onClick: (c) => { c.close(); resolve(); this.start(); } },
+                            { label: pack.ready ? 'Dịch offline' : 'Tải gói offline', kind: 'primary', onClick: toOffline },
+                        ],
+                    });
+                });
+            } finally { this._sonioxDialogOpen = false; }
+            return;
+        }
+        this._showToast(message, 'error');
     }
 
     // Pause: stop capture and persist the current chunk, but keep the session

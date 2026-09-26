@@ -87,19 +87,19 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 
 > Gửi app cho bạn bè: kèm file **[docs/huong-dan-cai-dat.pdf](docs/huong-dan-cai-dat.pdf)** (3 trang: cài đặt, thiết lập, dùng trên lớp, xử lý lỗi; bản Markdown: [docs/huong-dan-cai-dat.md](docs/huong-dan-cai-dat.md)). Sửa bản Markdown rồi chạy `python3 scripts/build-guide-pdf.py` để tạo lại PDF.
 
-**Yêu cầu:** macOS 13 trở lên. Chip Apple (M1–M4) chạy tốt nhất; Intel dùng được (Local chậm hơn).
+**Yêu cầu:** macOS 13 trở lên. Chip Apple (M1 trở lên) chạy tốt nhất; Intel dùng được (Local chậm hơn).
 
 1. Vào **[Releases](https://github.com/ttkien2035/meowlaoshi/releases/latest)** và tải đúng file:
 
    | Máy của bạn | File |
    |---|---|
-   | Mac chip Apple (M1/M2/M3/M4) | `MeowLaoshi_<phiên bản>_aarch64.dmg` |
+   | Mac chip Apple (M1 trở lên) | `MeowLaoshi_<phiên bản>_aarch64.dmg` |
    | Mac Intel | `MeowLaoshi_<phiên bản>_x64.dmg` |
    | Windows 10/11 | `MeowLaoshi_<phiên bản>_x64-setup.exe` |
 
    Xem chip:  → **Giới thiệu về máy Mac này** → dòng *Chip*.
 
-2. Mở file `.dmg`, kéo **MeowLaoshi** vào **Applications**, rồi eject.
+2. Mở file `.dmg`, kéo **MeowLaoshi** vào **Applications** theo mũi tên trong cửa sổ, rồi đóng cửa sổ.
 
 3. Mở app lần đầu. App phát hành **miễn phí**, không ký bằng Apple Developer ID, nên macOS chặn lần mở đầu:
    1. Mở app → macOS báo *không mở được* → bấm **Xong**.
@@ -116,11 +116,14 @@ Không cần cài Python, Homebrew hay bất cứ thứ gì khác.
 
 ## Thiết lập lần đầu
 
-1. **Cài đặt › Engine dịch**: dán API key **Soniox** (tạo tại [console.soniox.com](https://console.soniox.com); nạp $10 dùng được ~80 giờ). Chọn ngôn ngữ nguồn **Chinese** → đích **Vietnamese** (đã là mặc định).
-2. **Hồ sơ môn học** (cùng màn hình): bấm **+** tạo hồ sơ cho môn (ví dụ *Tài chính doanh nghiệp*), bấm **📚 Nạp từ điển tài chính Trung–Việt**, thêm thuật ngữ riêng của giảng viên nếu có, **Lưu**.
-3. **Cài đặt › Micro**: bấm **Tải model** (1,2 MB) — model VAD mà engine Local cần. Giữ mặc định: bật lọc 80 Hz, **tắt** khử ồn và AGC (đo trên bài giảng thật, cả hai làm nhận dạng kém đi trong phòng vang có tiếng sinh viên); bật VAD khi lớp có nhiều khoảng lặng.
-4. (Tuỳ chọn) **Cài đặt › Model › Local › Tải model** (1,6 GB, tải một lần) để dịch offline khi không có mạng/VPN.
-5. Trên thanh Live chọn nguồn **🎤 Mic**, chọn hồ sơ môn, bấm **▶ Bắt đầu**.
+Lần đầu mở, app dẫn bạn qua 4 bước; bước nào cũng bỏ qua được và làm lại sau trong **Cài đặt**:
+
+1. **Key Soniox** — dán key, bấm **Kiểm tra key**: app kết nối thử ngay và báo kết quả. Chưa có key thì chọn **Chưa có key** và dùng engine offline.
+2. **Gói offline** — tải một lần 1,6 GB (nhận dạng, dịch, ngắt câu) để Local chạy không cần mạng hay VPN. Gói tải trong nền, có chip hiện phần trăm.
+3. **Môn học** — *Tài chính – kinh tế* tạo sẵn hồ sơ môn với từ điển ~480 thuật ngữ; *Môn khác* bắt đầu với từ điển trống.
+4. **Thử micro** — cấp quyền micro cho macOS và xem thanh mức âm theo giọng nói.
+
+Có key thì app bắt đầu với Soniox, không có thì với Local. Về sau, hễ thiếu gì (key, gói offline, quyền micro, mạng), app hiện hộp thoại kèm nút sửa ngay. Mặc định micro: bật lọc 80 Hz, **tắt** khử ồn và AGC — đo trên bài giảng thật, cả hai làm nhận dạng kém đi trong phòng vang có tiếng sinh viên.
 
 ---
 

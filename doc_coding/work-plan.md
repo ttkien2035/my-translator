@@ -307,7 +307,7 @@ Thay cho mục "Giữ nguyên có chủ đích" ở trên.
 
 ---
 
-## Commit E — Người dùng phổ thông: cài dễ, dùng dễ (Kiên giao, 2026-09-26) — **CHƯA LÀM, ưu tiên cao**
+## Commit E — Người dùng phổ thông: cài dễ, dùng dễ (Kiên giao, 2026-09-26) — **ĐÃ LÀM, chờ QA** (xem mục trạng thái cuối file)
 
 **Kiên:** *"làm người dùng dễ bị kẹt … xử lý làm sao cho người dùng (non-tech user) dễ cài đặt, dễ xài nhất."*
 
@@ -343,3 +343,27 @@ Bằng chứng: Kiên cài bản release 1.0.0 như người dùng phổ thông 
 - Không key, chọn offline: tới bản dịch đầu tiên chỉ tốn thời gian tải 1,6 GB, **không có ngõ cụt**.
 - Cố tình gây lỗi (thiếu model, key sai, từ chối micro, tắt Wi-Fi giữa chừng): **mọi thông báo lỗi đều có nút sửa**, sửa xong dùng tiếp không cần khởi động lại app.
 - Mở app lần 2: không hiện lại trình hướng dẫn; mọi thiết lập còn nguyên.
+
+### Trạng thái Commit E — đã làm (kỹ sư trưởng, 2026-09-26)
+
+| # | Kết quả |
+|---|---|
+| E1 | `local_models_status` / `local_models_download` = **gói offline**: X-ASR + Hy-MT2 + **Silero VAD** (VAD tải trước, 0,6 MB). Nút ở Cài đặt › Model › Local và mọi hộp thoại dùng chung một lượt tải (`onboarding.js › downloadOfflinePack`), có chip "📦 Gói offline 42 %" ở góc khi hộp thoại đã đóng. Trạng thái: "Offline: sẵn sàng" / "Offline: chưa tải (1,6 GB)". |
+| E2 | `start()` không còn toast chỉ đường menu: thiếu gói → hộp thoại **Tải ngay** (xong tự bắt đầu); thiếu key Soniox/OpenAI/Qwen → hộp thoại dán key + **Kiểm tra & lưu** (Soniox/OpenAI kết nối thử), hoặc **Dùng offline thay thế**. `models_missing` từ Rust → cùng hộp thoại. Soniox 401 / 4001 / 4003 → hỏi key; 402 / 4002 → "hết hạn mức, hỏi người cấp key"; nối lại thất bại 3 lần → **Mất kết nối** (Thử lại / Dịch offline hoặc Tải gói offline). Thông báo lỗi Soniox dịch sang tiếng Việt. |
+| E3 | Trình hướng dẫn 4 bước thay hộp "Chọn cách dịch" (đã bỏ markup + CSS cũ): key Soniox (kiểm tra ngay) → gói offline (tải nền) → môn học (Tài chính = hồ sơ ~480 thuật ngữ / Môn khác) → thử micro (thanh mức âm, phát hiện bị chặn). "Bỏ qua" ở mọi bước; kết thúc: có key → Soniox, không → Local; nguồn micro; nút Bắt đầu nhấp nháy 3 lần (tắt nếu reduce motion). Hồ sơ có sẵn không bao giờ bị ghi đè. |
+| E4 | Nền DMG `src-tauri/dmg/background.png` (mũi tên + 3 bước, có "Vẫn mở"), `bundle.macOS.dmg` trong `tauri.conf.json`; `scripts/build-dmg-background.py` vẽ lại. Hướng dẫn viết lại theo trình hướng dẫn (bỏ bước tháo đĩa, "M1 trở lên"), PDF dựng lại; README Anh/Việt cùng sửa. **Chưa có ảnh chụp** (I3): nhờ QA chụp cửa sổ DMG thật và màn "Vẫn mở" trên macOS 27, bỏ vào `docs/images/`, kỹ sư trưởng chèn vào hướng dẫn. |
+| E5 | `MicSilenceWatch`: micro/cả hai (không bật cổng VAD) mà 4 s liền toàn mẫu 0 → tạm dừng + hộp thoại **Mở cài đặt quyền Micrô** (lệnh Rust `open_privacy_settings`, URL cố định) + **Đã bật, thử lại**. |
+| E6 | Cài đặt tự lưu khi rời màn hình (Esc, nút quay lại, ⌘1…), chỉ khi người dùng thật sự thay đổi (sự kiện `isTrusted`). |
+| E7 | Cài mới: hồ sơ "Tài chính – kinh tế" có sẵn từ điển (từ trình hướng dẫn, kể cả khi bấm Bỏ qua). |
+| E8 | Xem E2 (mất kết nối Soniox → chuyển offline một nút). |
+| E9 | Kiên quyết định **giữ như hiện tại** (không Developer ID, tránh chi phí; app cho Kiên và bạn bè). Cửa sổ DMG + hướng dẫn nói rõ bước "Vẫn mở". |
+| E10 | `mainBinaryName: "meowlaoshi"` → `Contents/MacOS/meowlaoshi`. Updater thay cả bundle nên không ảnh hưởng. |
+
+Kiểm: `npm run test:js` (8 test, gồm phát hiện micro bị chặn và hồ sơ mặc định); smoke test jsdom (không commit) chạy qua hộp thoại gói offline, key sai/đúng/chọn offline, quyền micro, trình hướng dẫn có/không key; `cargo clippy --all-targets` sạch, `cargo test` qua. **Chưa chạy trên Mac.**
+
+QA chạy "bài test người mới" ở tiêu chí nghiệm thu Commit E, thêm:
+- Cửa sổ DMG ở **cả chế độ sáng và tối**: chữ tên hai biểu tượng (Finder tự vẽ) còn đọc được trên nền xanh nhạt không.
+- Trình hướng dẫn: key sai → thông báo; Wi-Fi tắt khi kiểm tra key → câu "Máy đang mất mạng…".
+- Từ chối quyền micro ở bước 4, rồi bấm Bắt đầu với nguồn Mic → sau ~4 s phải hiện hộp thoại quyền micro.
+- Sửa một ô trong Cài đặt rồi thoát bằng Esc → mở lại vẫn còn.
+- `ls /Applications/MeowLaoshi.app/Contents/MacOS/` → `meowlaoshi`; cập nhật từ bản 1.0.0 cũ lên bản mới vẫn chạy.

@@ -27,6 +27,40 @@ pub(crate) fn session_id_from_headers(headers: &http::HeaderMap) -> Result<u64, 
 /// Per-user app data dir, the same folder as settings and sessions:
 /// `~/Library/Application Support/<APP_ID>` on macOS, `%APPDATA%\<APP_ID>` on
 /// Windows, `~/.local/share/<APP_ID>` on Linux. Holds downloaded models.
+/// Open the OS privacy page for `pane` ("microphone" | "screen"), so a
+/// "permission denied" dialog can take the user straight there. Only these
+/// fixed URLs are ever opened.
+#[tauri::command]
+pub fn open_privacy_settings(pane: String) -> Result<(), String> {
+    let url = privacy_url(&pane).ok_or_else(|| format!("unknown privacy pane {pane}"))?;
+    #[cfg(target_os = "macos")]
+    let mut cmd = std::process::Command::new("open");
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/C", "start", ""]);
+        c
+    };
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let mut cmd = std::process::Command::new("xdg-open");
+    cmd.arg(url).spawn().map(|_| ()).map_err(|e| format!("open {url}: {e}"))
+}
+
+fn privacy_url(pane: &str) -> Option<&'static str> {
+    if cfg!(target_os = "windows") {
+        match pane {
+            "microphone" => Some("ms-settings:privacy-microphone"),
+            _ => None,
+        }
+    } else {
+        match pane {
+            "microphone" => Some("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"),
+            "screen" => Some("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"),
+            _ => None,
+        }
+    }
+}
+
 pub(crate) fn app_support_dir() -> std::path::PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))

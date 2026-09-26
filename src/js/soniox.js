@@ -58,7 +58,7 @@ export class SonioxClient {
         this.onTranslation = null;    // (text) => {}
         this.onProvisional = null;    // (text, speaker, language) => {}
         this.onStatusChange = null;   // (status) => {}
-        this.onError = null;          // (error) => {}
+        this.onError = null;          // (message, kind) => {} — kind: 'auth' | 'credits' | 'lost' | undefined
         this.onConfidence = null;     // (avgConfidence) => {}
     }
 
@@ -75,7 +75,7 @@ export class SonioxClient {
 
         if (!apiKey) {
             this._setStatus('error');
-            this.onError?.('API key is required. Please add it in Settings.');
+            this.onError?.('Chưa có API key Soniox.', 'auth');
             return;
         }
 
@@ -216,7 +216,8 @@ export class SonioxClient {
         newWs.onerror = (event) => {
             if (newWs._isOld) return;
             console.error('[Soniox] WebSocket ERROR:', event);
-            this.onError?.('WebSocket error occurred');
+            // The close event that follows says what happened; nothing to show yet.
+            console.warn('[Soniox] socket error (close event follows)');
         };
 
         newWs.onclose = (event) => {
@@ -244,18 +245,18 @@ export class SonioxClient {
             if (event.code === 1000) {
                 this._setStatus('disconnected');
             } else if (event.code === 1006) {
-                this._tryReconnect('Connection lost unexpectedly');
+                this._tryReconnect('Mất kết nối');
             } else if (event.code === 4001 || event.code === 4003) {
                 this._setStatus('error');
-                this.onError?.('Invalid API key. Please check your key in Settings.');
+                this.onError?.('Soniox từ chối API key.', 'auth');
             } else if (event.code === 4029) {
                 this._setStatus('error');
-                this.onError?.('Rate limit exceeded. Please wait and try again.');
+                this.onError?.('Soniox đang giới hạn số yêu cầu, chờ một chút rồi bấm Bắt đầu lại.');
             } else if (event.code === 4002) {
                 this._setStatus('error');
-                this.onError?.('Subscription issue. Please check your Soniox account.');
+                this.onError?.('Key Soniox đã hết hạn mức sử dụng.', 'credits');
             } else {
-                this._tryReconnect(`Connection closed (code: ${event.code})`);
+                this._tryReconnect(`Kết nối bị đóng (mã ${event.code})`);
             }
         };
     }
@@ -555,29 +556,30 @@ export class SonioxClient {
         console.error('Soniox API error:', code, message);
 
         if (code === 408) {
-            this._tryReconnect('Request timeout');
+            this._tryReconnect('Hết thời gian chờ');
             return;
         }
 
-        let userMessage = message;
+        let userMessage = `Soniox báo lỗi: ${message}`;
+        let kind;
         if (code === 401) {
-            userMessage = '❌ Invalid API key. Please check your key in Settings.';
-        } else if (code === 429) {
-            userMessage = '⏳ Rate limit exceeded. Please wait a moment.';
+            userMessage = 'Soniox từ chối API key.'; kind = 'auth';
         } else if (code === 402) {
-            userMessage = '💳 Insufficient credits. Check your Soniox account.';
+            userMessage = 'Key Soniox đã hết hạn mức sử dụng.'; kind = 'credits';
+        } else if (code === 429) {
+            userMessage = 'Soniox đang giới hạn số yêu cầu, chờ một chút rồi bấm Bắt đầu lại.';
         } else if (code === 400) {
-            userMessage = `⚙️ Config error: ${message}`;
+            userMessage = `Cấu hình gửi tới Soniox không hợp lệ: ${message}`;
         }
 
         this._setStatus('error');
-        this.onError?.(userMessage);
+        this.onError?.(userMessage, kind);
     }
 
     _tryReconnect(reason) {
         if (this._reconnectAttempts >= MAX_RECONNECT) {
             this._setStatus('error');
-            this.onError?.(`${reason}. Reconnect failed after ${MAX_RECONNECT} attempts.`);
+            this.onError?.(`${reason}; đã thử nối lại ${MAX_RECONNECT} lần.`, 'lost');
             return;
         }
 
@@ -586,7 +588,7 @@ export class SonioxClient {
 
         console.log(`Reconnecting (${this._reconnectAttempts}/${MAX_RECONNECT}) in ${delay}ms...`);
         this._setStatus('connecting');
-        this.onError?.(`${reason}. Reconnecting (${this._reconnectAttempts}/${MAX_RECONNECT})...`);
+        this.onError?.(`${reason}, đang nối lại (${this._reconnectAttempts}/${MAX_RECONNECT})…`);
 
         setTimeout(() => {
             if (!this._intentionalDisconnect && this._config) {

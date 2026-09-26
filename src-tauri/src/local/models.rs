@@ -176,8 +176,14 @@ pub struct LocalModelStatus {
     pub size: u64,
 }
 
+/// Everything the Local engine needs — the "offline pack": both models above
+/// plus Silero VAD, which the pipeline segments utterances with. VAD lives
+/// with the mic models (Settings › Micro uses it too) but is part of the
+/// pack so one button always leaves Local runnable.
 #[tauri::command]
 pub fn local_models_status() -> Vec<LocalModelStatus> {
+    use crate::commands::audio_models::{self, SILERO_VAD_ID};
+    let vad = audio_models::MODELS.iter().find(|m| m.id == SILERO_VAD_ID);
     MODELS
         .iter()
         .map(|m| LocalModelStatus {
@@ -186,6 +192,12 @@ pub fn local_models_status() -> Vec<LocalModelStatus> {
             installed: is_installed(m),
             size: m.size,
         })
+        .chain(vad.map(|m| LocalModelStatus {
+            id: m.id,
+            label: "Silero VAD (ngắt câu)",
+            installed: audio_models::installed_path(m.id).is_some(),
+            size: m.size,
+        }))
         .collect()
 }
 
@@ -200,6 +212,15 @@ pub async fn local_models_download(
     let dir = models_dir();
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create models dir: {e}"))?;
     let client = crate::commands::download::client()?;
+
+    // VAD first: 0.6 MB, and without it Local cannot start at all.
+    {
+        use crate::commands::audio_models::{self, SILERO_VAD_ID};
+        if audio_models::installed_path(SILERO_VAD_ID).is_none() {
+            let _audio_guard = crate::commands::download::InFlightGuard::acquire("audio-models")?;
+            audio_models::install(&client, SILERO_VAD_ID, &on_progress).await?;
+        }
+    }
 
     for m in MODELS.iter() {
         if is_installed(m) {

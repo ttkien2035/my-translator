@@ -16,7 +16,7 @@ Format: `## v<version> - <YYYY-MM-DD>` followed by content until the next `## v`
 
 | Máy / Machine | File |
 |---|---|
-| Mac chip Apple (M1–M4) | `MeowLaoshi_1.0.0_aarch64.dmg` |
+| Mac chip Apple (M1 trở lên) | `MeowLaoshi_1.0.0_aarch64.dmg` |
 | Mac Intel | `MeowLaoshi_1.0.0_x64.dmg` |
 | Windows 10/11 | `MeowLaoshi_1.0.0_x64-setup.exe` |
 
@@ -31,6 +31,7 @@ Bản phát hành miễn phí, không ký bằng Apple Developer ID, nên macOS 
 3. Chỉ làm một lần. Các bản sau cập nhật trong app (Cài đặt › Giới thiệu). / *Once only; later versions update in-app.*
 
 ### Mới
+- **Tự dẫn đường cho người mới**: lần đầu mở, 4 bước ngắn — key Soniox (kiểm tra kết nối ngay), gói offline, môn học (nạp sẵn từ điển tài chính), thử micro có thanh mức âm. Về sau, hễ thiếu gì app hiện hộp thoại có nút sửa ngay: **Tải ngay** gói offline (một nút tải đủ nhận dạng + dịch + ngắt câu), ô dán key khi key sai hoặc hết hạn mức, **Mở cài đặt quyền Micrô** khi macOS chặn micro, **Dịch offline** khi mất kết nối Soniox. Cửa sổ DMG có mũi tên và 3 bước tiếng Việt.
 - **Hồ sơ môn học** + từ điển Trung–Anh–Việt ~480 thuật ngữ (tài chính cơ bản, bậc thạc sĩ, bộ CUFE), nạp vào Soniox (`terms` / `translation_terms`, cắt vừa giới hạn 8 000 token — ưu tiên thuật ngữ dài) và làm hotword cho engine Local; đổi hồ sơ giữa giờ áp dụng ngay.
 - **Ghi chú trong buổi** (`⌘⇧N`), chép câu (`⌘⇧C`), đánh dấu ⭐ ❓ 📝 (`⌘⇧1/2/3`), tự đánh dấu 📝 khi giảng viên nói 会考/考点…
 - **Thư viện ôn bài**: đọc lại từng câu, đánh dấu và viết tiếp ghi chú sau giờ học, lọc/tìm, nhảy tới câu.
@@ -41,6 +42,7 @@ Bản phát hành miễn phí, không ký bằng Apple Developer ID, nên macOS 
 - **Giao diện macOS**: cửa sổ thường (không còn luôn nằm trên), traffic lights gốc, font hệ thống, nền đặc, cửa sổ nổi ⤢ khi chiếu slide; màn hình chính tiếng Việt; modal chọn engine chỉ lần đầu.
 
 ### Sửa
+- Thay đổi trong Cài đặt không còn mất khi đóng bằng Esc hay nút quay lại (tự lưu).
 - Soniox mất chữ mỗi lần tự nối lại 3 phút; VAD cắt mất phụ âm đầu câu; câu rác từ khoảng lặng.
 - Engine Local: trong tiếng ồn liên tục, VAD không ngắt câu ở 8 s (đo được một đoạn 46 s → dịch trễ 46 s; X-ASR sập từ 50 s). Pipeline nay tự ngắt ở chỗ lặng sau 8 s, chậm nhất 12 s.
 - Cài đặt "Opacity" làm mờ toàn bộ giao diện còn 85 % (chữ nhạt đi, tốn thêm một lớp GPU) — đã bỏ, giao diện luôn đặc.

@@ -165,9 +165,6 @@ class App {
             };
         }
 
-        // Window position restore disabled — causes issues on Retina displays
-        // await this._restoreWindowPosition();
-
         // Window modes: normal window (default) ↔ compact floating overlay (⤢)
         document.addEventListener('window-mode-changed', () => this._applyAlwaysOnTop());
         initWindowModes(this.appWindow);
@@ -749,7 +746,6 @@ class App {
             // Cmd/Ctrl + M: Minimize
             if ((e.metaKey || e.ctrlKey) && e.key === 'm') {
                 e.preventDefault();
-                this._saveWindowPosition();
                 this.appWindow.minimize();
             }
 
@@ -2197,11 +2193,6 @@ class App {
         if (el) el.style.display = display;
     }
 
-    _setSel(selector, display) {
-        const el = document.querySelector(selector);
-        if (el) el.style.display = display;
-    }
-
     /** Capability = usability, not method existence. Returns {ok, reason, provider}. */
     async _readCapability() {
         const settings = settingsManager.get();
@@ -3516,52 +3507,6 @@ class App {
         // Auto-hide chrome only while translating (idle 3s → hide, hover/keys → show)
         if (this.isRunning) startAutoHideWatch();
         else stopAutoHideWatch();
-    }
-
-    // ─── Window Position ───────────────────────────────────
-
-    async _saveWindowPosition() {
-        try {
-            const factor = await this.appWindow.scaleFactor();
-            const pos = await this.appWindow.outerPosition();
-            const size = await this.appWindow.innerSize();
-            // Save logical coordinates (physical / scaleFactor)
-            localStorage.setItem('window_state', JSON.stringify({
-                x: Math.round(pos.x / factor),
-                y: Math.round(pos.y / factor),
-                width: Math.round(size.width / factor),
-                height: Math.round(size.height / factor),
-            }));
-        } catch (err) {
-            console.error('Failed to save window position:', err);
-        }
-    }
-
-    async _restoreWindowPosition() {
-        try {
-            const saved = localStorage.getItem('window_state');
-            if (!saved) return;
-
-            const state = JSON.parse(saved);
-            const { LogicalPosition, LogicalSize } = window.__TAURI__.window;
-
-            // Validate — don't restore if position seems off-screen
-            if (state.x < -100 || state.y < -100 || state.x > 5000 || state.y > 3000) {
-                console.warn('Saved window position looks off-screen, skipping restore');
-                localStorage.removeItem('window_state');
-                return;
-            }
-
-            if (state.width && state.height && state.width >= 300 && state.height >= 100) {
-                await this.appWindow.setSize(new LogicalSize(state.width, state.height));
-            }
-            if (state.x !== undefined && state.y !== undefined) {
-                await this.appWindow.setPosition(new LogicalPosition(state.x, state.y));
-            }
-        } catch (err) {
-            console.error('Failed to restore window position:', err);
-            localStorage.removeItem('window_state');
-        }
     }
 
     // ─── Pin / Unpin (Always on Top) ────────────────────

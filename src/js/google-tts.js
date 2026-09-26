@@ -44,14 +44,6 @@ class GoogleTTS {
     /**
      * Auto-select voice based on target language
      */
-    setTargetLanguage(lang) {
-        const mapping = VOICE_MAP[lang];
-        if (mapping) {
-            this.languageCode = mapping.code;
-            this.voice = mapping.name;
-        }
-    }
-
     connect() {
         if (!this.apiKey) {
             this.onError?.('Google TTS API key is missing');

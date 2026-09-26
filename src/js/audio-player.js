@@ -144,13 +144,6 @@ class AudioPlayer {
     /**
      * Enable/disable playback
      */
-    setEnabled(enabled) {
-        this._enabled = enabled;
-        if (!enabled) {
-            this.stop();
-        }
-    }
-
     /**
      * Check if currently playing or has queued audio
      */

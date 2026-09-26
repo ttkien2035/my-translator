@@ -18,6 +18,7 @@
 8. [Dữ liệu nằm ở đâu](#dữ-liệu-nằm-ở-đâu)
 9. [Xử lý sự cố](#xử-lý-sự-cố)
 10. [Kiến trúc & công nghệ](#kiến-trúc--công-nghệ)
+11. [Cấu trúc repo & tài liệu](#cấu-trúc-repo--tài-liệu)
 
 ---
 
@@ -39,7 +40,14 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 - **Hồ sơ môn học** — mỗi môn một bộ: lĩnh vực, từ nhận dạng, ngữ cảnh nền và **từ điển thuật ngữ nguồn → đích**. Có sẵn **278 thuật ngữ tài chính Trung–Anh–Việt** (báo cáo tài chính, chỉ số, tài chính doanh nghiệp, đầu tư, phái sinh, ngân hàng – tiền tệ, vĩ mô, kinh tế lượng, thuế – quản trị, câu thường gặp trên lớp) nạp bằng một nút bấm. Đổi hồ sơ **giữa giờ** cũng áp dụng ngay.
 - **Khung ghi chú** ngay dưới bản dịch (`⌘⇧N`), tự lưu cùng phiên và xuất ra Markdown. `⌘⇧C` chép câu vừa dịch (kèm giờ và câu gốc). `⌘⇧1/2/3` đánh dấu câu vừa dịch ⭐ quan trọng / ❓ chưa hiểu / 📝 sẽ thi — dấu hiện ngay trên bản dịch và được gom thành mục *Đánh dấu* khi xuất.
 - **Tự đánh dấu 📝** khi giảng viên nói *会考 / 考点 / 期末考 / 必考…* ("phần này sẽ thi").
-- **Thư viện phiên**: mọi buổi được lưu (Markdown + JSON), tìm kiếm, đổi tên, xuất SRT/TXT.
+- **Bản dịch trực tiếp cuộn lại được cả buổi** (tới ~1 500 câu trên màn hình). Cuộn lên đọc lại thì không bị kéo xuống; ở cuối thì tự theo chữ mới.
+- **Thư viện ôn bài**: mọi buổi tự lưu (Markdown + JSON, 15 giây/lần và khi dừng/thoát). Mở một buổi để:
+  - đọc lại từng câu (bản dịch, câu gốc, giờ);
+  - **bấm đánh ⭐ ❓ 📝 sau giờ học**;
+  - **viết tiếp ghi chú** (tự lưu);
+  - lọc theo dấu và tìm trong buổi; bấm một câu trong kết quả để nhảy tới đúng chỗ.
+
+  Ngoài ra: tìm giữa các buổi, đổi tên, chép Markdown, xuất SRT/TXT.
 
 ### Micro & âm thanh
 
@@ -50,12 +58,20 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 
 ### Đọc & nghe
 
-- **TTS** đọc bản dịch (Edge miễn phí, Microsoft, Google, ElevenLabs, TikTok, hoặc **Piper offline** với giọng Việt) và **chế độ Đọc** cho văn bản dán vào.
-- Giao diện nổi luôn trên cùng, chế độ compact tự ẩn, chế độ hai cột nguồn | dịch, cỡ chữ tới 140 px.
+- **TTS** đọc bản dịch (Edge miễn phí, Microsoft, Google, ElevenLabs, TikTok, hoặc **Piper offline** với giọng Việt; xem [hướng dẫn TTS](docs/tts_guide_vi.md)) và **chế độ Đọc** cho văn bản dán vào.
+
+### Giao diện kiểu macOS
+
+- Cửa sổ bình thường (không đè lên app khác), traffic lights gốc, font hệ thống (SF / PingFang cho chữ Hán), nền đặc tối, thanh cuộn và con trỏ gốc, tôn trọng *Reduce motion*.
+- **⤢ Cửa sổ nổi**: thu nhỏ thành khung luôn nằm trên để dùng cạnh slide. **📌 Ghim** (`⌘P`) giữ cửa sổ thường nằm trên.
+- Chế độ hai cột nguồn | dịch, compact tự ẩn thanh công cụ, cỡ chữ tới 140 px, màn hình chính toàn tiếng Việt.
 
 ### Kỹ thuật (điểm khác biệt so với bản gốc)
 
 - Audio qua IPC dạng nhị phân, hàng đợi có giới hạn, timeout kết nối, dừng thu tức thì, model giải phóng khi dừng phiên — không rò rỉ, không chạy ngầm khi nhàn rỗi.
+- Nhẹ tài nguyên (chỉ model Local được phép nặng):
+  - không hiệu ứng mờ/trong suốt, không animation chạy suốt buổi, không web font;
+  - bản dịch vẽ tăng dần: mỗi câu tốn chi phí cố định dù buổi dài bao lâu, nhiều token trong một khung hình gộp thành một lần vẽ.
 - Không tải gì khi cài app; model chỉ tải khi bạn bấm **Tải model** (khử ồn + VAD ~1,2 MB; Local ~2,3 GB), có kiểm tra SHA-256.
 - `settings.json` ghi atomic + bản sao `.bak`; khoá API không bao giờ ghi ra log.
 
@@ -102,7 +118,7 @@ Không cần cài Python, Homebrew hay bất cứ thứ gì khác.
 - Ngồi gần giảng viên hoặc dùng micro rời/kẹp áo; micro MacBook cách 5–10 m sẽ giảm độ chính xác rõ rệt.
 - Bật ghi chú `⌘⇧N`. Nghe đến ý quan trọng: `⌘⇧1`; chưa hiểu: `⌘⇧2`; giảng viên báo sẽ thi: `⌘⇧3` (hoặc để app tự bắt). Muốn giữ nguyên câu: `⌘⇧C`.
 - Đổi môn ngay trên thanh Live bằng ô hồ sơ (hiện khi có ≥ 2 hồ sơ).
-- Hết buổi bấm **Dừng**; buổi học nằm trong **Thư viện** với bản dịch, câu gốc, các câu đã đánh dấu và ghi chú của bạn — xuất Markdown để đưa vào Notion/Apple Notes.
+- Hết buổi bấm **Dừng**. Buổi học nằm trong **📚 Thư viện**: mở ra để ôn — lọc 📝 xem phần *sẽ thi*, lọc ❓ để hỏi lại giảng viên, đánh dấu thêm và viết tiếp ghi chú. Bấm **Chép** để lấy Markdown dán vào Notion/Apple Notes.
 - Nên xin phép giảng viên trước khi ghi âm.
 
 ---
@@ -291,6 +307,27 @@ Micro / hệ thống ─► Rust capture ─► DSP thread (resample · HPF · G
 - **reqwest / tokio-tungstenite** cho các engine cloud
 
 Mã Rust được kiểm bằng `cargo clippy --all-targets` (0 cảnh báo) và test chạy model thật trên Linux/CI; các phần chỉ có trên macOS (ScreenCaptureKit, Voice Processing, Metal) kiểm trên MacBook.
+
+---
+
+## Cấu trúc repo & tài liệu
+
+```
+src/                     giao diện (HTML/CSS/JS thuần, không bundler)
+  js/app.js              điều phối chính: phiên, engine, cài đặt, phím tắt
+  js/ui.js               bản dịch trực tiếp (vẽ tăng dần)
+  js/study-view.js       Thư viện › ôn bài
+  js/session-store.js    lưu phiên (JSON + Markdown)
+  js/glossary/           từ điển tài chính Trung–Anh–Việt
+src-tauri/               backend Rust (Tauri 2)
+  src/audio/             thu âm: cpal, ScreenCaptureKit, WASAPI, Apple Voice Processing, DSP micro
+  src/local/             engine offline: VAD → SenseVoice → Qwen2.5 (llama.cpp)
+  src/commands/          lệnh Tauri: engine cloud, TTS, phiên, tải model
+docs/project-changelog.md  lịch sử thay đổi (CI dùng làm release notes)
+docs/tts_guide*.md         hướng dẫn giọng đọc
+doc_coding/                kế hoạch & báo cáo QA giữa phiên phát triển (WSL) và phiên QA (macOS)
+scripts/                   build ký/notarize, chạy dev với .env
+```
 
 ---
 

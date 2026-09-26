@@ -7,7 +7,6 @@
     "tauri": "tauri",
     "dev": "node scripts/tauri-with-env.mjs dev",
     "dev:default": "tauri dev",
-    "dev:web": "npx serve src -p 3111",
     "build": "tauri build",
     "build:dev": "node scripts/tauri-with-env.mjs build",
     "lint": "cd src-tauri && cargo clippy",

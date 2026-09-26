@@ -7,6 +7,33 @@ Format: `## v<version> - <YYYY-MM-DD>` followed by content until the next `## v`
 
 ---
 
+## Unreleased — Lecture Edition (fork ttkien2035)
+
+Tuỳ biến cho nghe giảng tiếng Trung → ghi chú tiếng Việt (tài chính). Khi phát hành: đổi tiêu đề thành `## v<version> - <ngày>`.
+
+### Mới
+- **Hồ sơ môn học** + từ điển tài chính Trung–Anh–Việt 278 thuật ngữ, nạp vào Soniox (`terms` / `translation_terms`); đổi hồ sơ giữa giờ áp dụng ngay.
+- **Ghi chú trong buổi** (`⌘⇧N`), chép câu (`⌘⇧C`), đánh dấu ⭐ ❓ 📝 (`⌘⇧1/2/3`), tự đánh dấu 📝 khi giảng viên nói 会考/考点…
+- **Thư viện ôn bài**: đọc lại từng câu, đánh dấu và viết tiếp ghi chú sau giờ học, lọc/tìm, nhảy tới câu.
+- **Engine Local thuần Rust**: SenseVoice-small (sherpa-onnx) + Qwen2.5-3B-Instruct (llama.cpp, Metal); bỏ Python/MLX; model chỉ tải khi bấm "Tải model" (SHA-256).
+- **Micro cho lớp học**: resample chống aliasing, lọc 80 Hz, khử ồn GTCRN, AGC, VAD Silero, Apple Voice Processing (macOS).
+- **Cài đặt › Model**: chọn engine và tên model, ô LLM hỗ trợ (DeepSeek / DashScope / Zhipu / OpenAI / tuỳ chỉnh).
+- **Giao diện macOS**: cửa sổ thường (không còn luôn nằm trên), traffic lights gốc, font hệ thống, nền đặc, cửa sổ nổi ⤢ khi chiếu slide; màn hình chính tiếng Việt; modal chọn engine chỉ lần đầu.
+
+### Sửa
+- Soniox mất chữ mỗi lần tự nối lại 3 phút; VAD cắt mất phụ âm đầu câu; câu rác từ khoảng lặng.
+- `settings.json` có thể bị xoá sạch; `.bak` có thể bị ghi đè bởi file hỏng; từ điển (`general` / `terms` / `text`) không được lưu.
+- Rò session OpenAI/Qwen; TTS vẫn đọc sau khi tạm dừng; TTS tự tắt khi lưu cài đặt; khoá API bị ghi ra log.
+- Nguồn "Cả hai" nối chuỗi thay vì trộn; luồng ScreenCaptureKit có thể không dừng khi đổi nguồn.
+
+### Hiệu năng
+- Audio qua IPC nhị phân, hàng đợi có giới hạn, chính sách "bám thời gian thực" khi mạng/máy chậm.
+- Bản dịch trực tiếp vẽ tăng dần và cuộn lại được cả buổi (trước chỉ ~800 ký tự cuối); bỏ hai đường O(n)/sự kiện (1 600 câu: 2,5 s → 0,29 s).
+- Bỏ blur, animation chạy suốt buổi, web font.
+
+### Dọn dẹp
+- Bỏ cấu hình agent `.opencode/`, benchmarks, hướng dẫn cài đặt và ảnh giao diện cũ, banner, `pnpm-lock.yaml`, giả lập `tauri-mock.js` (+ `npm run dev:web`), `web-speech-tts.js`, các lệnh `save/list/read_transcript` và `check_permissions`, thanh "Max Lines".
+
 ## v0.9.1 - 2026-07-11
 
 ### Fixed — engine picker no longer traps users

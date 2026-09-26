@@ -2,7 +2,7 @@
 //! data dir with pinned SHA-256 checksums:
 //!
 //! - SenseVoice-small int8 (sherpa-onnx, zh/en/ja/ko/yue ASR), ~163 MB archive
-//! - Qwen2.5-3B-Instruct Q4_K_M GGUF (llama.cpp translation LLM), ~2.1 GB
+//! - Tencent Hy-MT2-1.8B Q6_K GGUF (llama.cpp translation model), ~1.47 GB
 //!
 //! Hugging Face is tried first, then the hf-mirror.com mirror (reachable from
 //! mainland China without a VPN). A custom GGUF path in settings overrides the
@@ -16,7 +16,11 @@ use tauri::ipc::Channel;
 use crate::commands::download::{download_file, extract_tar_bz2, DownloadProgress};
 
 pub const SENSEVOICE_ID: &str = "sensevoice-int8";
-pub const QWEN_ID: &str = "qwen2.5-3b-instruct-q4";
+pub const LLM_ID: &str = "hy-mt2-1.8b-q6";
+
+/// The former default LLM (Qwen2.5-3B-Instruct Q4_K_M, 2.1 GB). Deleted once
+/// Hy-MT2 is installed, unless the user points the custom GGUF at it.
+const LEGACY_LLM_FILE: &str = "qwen2.5-3b-instruct-q4_k_m.gguf";
 
 pub enum Kind {
     /// `.tar.bz2` whose single top-level folder is stripped into `dir`.
@@ -44,16 +48,19 @@ pub const MODELS: [LocalModel; 2] = [
         sha256: "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
         size: 163_002_883,
     },
+    // Apache-2.0. Chosen over Qwen2.5-3B by a 25-sentence finance-lecture
+    // benchmark: no untranslated Chinese (Qwen: 15/25), faster, smaller.
+    // Q6_K rather than Q4_K_M: Q4 dropped digits ("3.2 lần" → "3 lần").
     LocalModel {
-        id: QWEN_ID,
-        label: "Qwen2.5-3B-Instruct Q4 (dịch)",
-        kind: Kind::File { file: "qwen2.5-3b-instruct-q4_k_m.gguf" },
+        id: LLM_ID,
+        label: "Hy-MT2-1.8B Q6 (dịch)",
+        kind: Kind::File { file: "Hy-MT2-1.8B-Q6_K.gguf" },
         urls: &[
-            "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
-            "https://hf-mirror.com/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
+            "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/Hy-MT2-1.8B-Q6_K.gguf",
+            "https://hf-mirror.com/tencent/Hy-MT2-1.8B-GGUF/resolve/main/Hy-MT2-1.8B-Q6_K.gguf",
         ],
-        sha256: "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d",
-        size: 2_104_932_768,
+        sha256: "d98fe604dec1f28f58f80d7d560f7177e584d3b8e5835862687660e5ff97cb40",
+        size: 1_474_785_120,
     },
 ];
 
@@ -89,7 +96,7 @@ pub fn sensevoice_files() -> Option<SenseVoiceFiles> {
 }
 
 /// Installed GGUF: a custom path from settings when it exists, else the
-/// bundled Qwen download (size-checked so a partial file never loads).
+/// bundled Hy-MT2 download (size-checked so a partial file never loads).
 pub fn llm_path(custom: &str) -> Option<PathBuf> {
     let custom = custom.trim();
     if !custom.is_empty() {
@@ -98,7 +105,7 @@ pub fn llm_path(custom: &str) -> Option<PathBuf> {
             return Some(p);
         }
     }
-    let m = entry(QWEN_ID)?;
+    let m = entry(LLM_ID)?;
     let Kind::File { file } = m.kind else {
         return None;
     };
@@ -112,7 +119,7 @@ pub fn llm_path(custom: &str) -> Option<PathBuf> {
 fn is_installed(m: &LocalModel) -> bool {
     match m.id {
         SENSEVOICE_ID => sensevoice_files().is_some(),
-        QWEN_ID => llm_path("").is_some(),
+        LLM_ID => llm_path("").is_some(),
         _ => false,
     }
 }
@@ -141,7 +148,10 @@ pub fn local_models_status() -> Vec<LocalModelStatus> {
 /// Download every missing model (SHA-256 verified), extracting archives.
 /// One download at a time — a second call while in flight is rejected.
 #[tauri::command]
-pub async fn local_models_download(on_progress: Channel<DownloadProgress>) -> Result<(), String> {
+pub async fn local_models_download(
+    on_progress: Channel<DownloadProgress>,
+    settings: tauri::State<'_, crate::settings::SettingsState>,
+) -> Result<(), String> {
     let _guard = crate::commands::download::InFlightGuard::acquire("local-models")?;
     let dir = models_dir();
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create models dir: {e}"))?;
@@ -166,7 +176,29 @@ pub async fn local_models_download(on_progress: Channel<DownloadProgress>) -> Re
         }
         emit("done", m.size, None);
     }
+    let custom_gguf = settings.0.lock().map(|s| s.local_llm_gguf.clone()).unwrap_or_default();
+    remove_legacy_llm(&dir, &custom_gguf);
     Ok(())
+}
+
+/// Free the 2.1 GB of the former default once its replacement is in place.
+/// Kept when it is the user's custom GGUF, or if anything is uncertain.
+fn remove_legacy_llm(dir: &Path, custom_gguf: &str) {
+    if llm_path("").is_none() {
+        return;
+    }
+    let legacy = dir.join(LEGACY_LLM_FILE);
+    if !legacy.is_file() || is_same_file(&legacy, Path::new(custom_gguf.trim())) {
+        return;
+    }
+    let _ = std::fs::remove_file(&legacy);
+}
+
+fn is_same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 async fn install_one(

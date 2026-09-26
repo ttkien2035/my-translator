@@ -410,7 +410,7 @@ fn llm_worker(
     let loading = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         "Đang khởi tạo Metal (lần đầu ~15 s)…"
     } else {
-        "Đang nạp Qwen2.5 (dịch)…"
+        "Đang nạp model dịch…"
     };
     status(sink, "loading", Some(loading.into()));
     let translator = match make_translator() {

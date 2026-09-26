@@ -31,7 +31,7 @@
 | ☁️ **Soniox** (khuyên dùng) | cloud | ~2 s | ~$0.12/giờ | 70+ ngôn ngữ nguồn; nhận **từ điển thuật ngữ** và ngữ cảnh của hồ sơ môn học |
 | 🌏 **Qwen LiveTranslate** | cloud (Alibaba) | ~4 s | miễn phí (preview) | vào được từ Trung Quốc không cần VPN; chỉ văn bản |
 | ⚡ **OpenAI Realtime** | cloud | ~2 s | ~$4/giờ | có giọng nói dịch; cần VPN ở Trung Quốc |
-| 🖥️ **Local** (offline) | trên máy, thuần Rust | ~2–3 s sau khi hết câu | miễn phí | SenseVoice (nhận dạng) + Qwen2.5-3B (dịch, Metal trên Apple Silicon); từ điển môn học đưa vào prompt |
+| 🖥️ **Local** (offline) | trên máy, thuần Rust | ~2–3 s sau khi hết câu | miễn phí | SenseVoice (nhận dạng) + Hy-MT2-1.8B của Tencent (model chuyên dịch, Metal trên Apple Silicon); từ điển môn học đưa vào prompt |
 
 Tên model của từng engine chỉnh được trong **Cài đặt › Model** (kể cả GGUF tuỳ chỉnh cho Local). Cùng chỗ đó có ô **LLM hỗ trợ** (DeepSeek / Qwen DashScope / Zhipu GLM / OpenAI / bất kỳ API chuẩn OpenAI) dành cho các tính năng dịch lại học thuật và tóm tắt sắp tới.
 
@@ -73,7 +73,7 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 - Nhẹ tài nguyên (chỉ model Local được phép nặng):
   - không hiệu ứng mờ/trong suốt, không animation chạy suốt buổi, không web font;
   - bản dịch vẽ tăng dần: mỗi câu tốn chi phí cố định dù buổi dài bao lâu, nhiều token trong một khung hình gộp thành một lần vẽ.
-- Không tải gì khi cài app; model chỉ tải khi bạn bấm **Tải model** (khử ồn + VAD ~1,2 MB; Local ~2,3 GB), có kiểm tra SHA-256.
+- Không tải gì khi cài app; model chỉ tải khi bạn bấm **Tải model** (khử ồn + VAD ~1,2 MB; Local ~1,6 GB), có kiểm tra SHA-256.
 - `settings.json` ghi atomic + bản sao `.bak`; khoá API không bao giờ ghi ra log.
 
 ---
@@ -112,7 +112,7 @@ Không cần cài Python, Homebrew hay bất cứ thứ gì khác.
 1. **Cài đặt › Engine dịch**: dán API key **Soniox** (tạo tại [console.soniox.com](https://console.soniox.com); nạp $10 dùng được ~80 giờ). Chọn ngôn ngữ nguồn **Chinese** → đích **Vietnamese** (đã là mặc định).
 2. **Hồ sơ môn học** (cùng màn hình): bấm **+** tạo hồ sơ cho môn (ví dụ *Tài chính doanh nghiệp*), bấm **📚 Nạp từ điển tài chính Trung–Việt**, thêm thuật ngữ riêng của giảng viên nếu có, **Lưu**.
 3. **Cài đặt › Micro**: bấm **Tải model** (1,2 MB) để bật khử ồn; trên MacBook thử thêm **Apple Voice Processing**. Gợi ý: bật khử ồn; bật VAD khi lớp có nhiều khoảng lặng; nếu nhận dạng *kém đi* thì tắt khử ồn (STT vốn chịu ồn tốt).
-4. (Tuỳ chọn) **Cài đặt › Model › Local › Tải model** (2,3 GB, tải một lần) để dịch offline khi không có mạng/VPN.
+4. (Tuỳ chọn) **Cài đặt › Model › Local › Tải model** (1,6 GB, tải một lần) để dịch offline khi không có mạng/VPN.
 5. Trên thanh Live chọn nguồn **🎤 Mic**, chọn hồ sơ môn, bấm **▶ Bắt đầu**.
 
 ---
@@ -177,7 +177,7 @@ cd src-tauri
 cargo check && cargo clippy --all-targets      # phải sạch cảnh báo
 cargo test                                     # test không cần model
 # Kiểm thử engine Local với model thật (thư mục model đã cài trong app dùng được):
-MT_TEST_SENSEVOICE_DIR=/path/sensevoice MT_TEST_GGUF=/path/qwen2.5-3b-instruct-q4_k_m.gguf \
+MT_TEST_SENSEVOICE_DIR=/path/sensevoice MT_TEST_GGUF=/path/Hy-MT2-1.8B-Q6_K.gguf \
   MT_TEST_WAV=/path/zh.wav cargo test --lib local:: -- --include-ignored --nocapture
 ```
 
@@ -269,7 +269,7 @@ Tất cả ở trên máy bạn. Chỉ engine cloud bạn chọn nhận âm than
 | Soniox báo lỗi 401/402 | Sai key hoặc hết tiền — kiểm tra tại console.soniox.com |
 | Qwen báo `WebSocket error` ngay khi Start | Key DashScope phải tạo ở region **Singapore** (endpoint quốc tế) |
 | Toast "⏩ Mạng chậm" liên tục | Wi-Fi yếu: chuyển sang Qwen (không cần VPN) hoặc Local (offline) |
-| Local: "cần tải model" | Cài đặt › Model › Local › **Tải model**; cần ~2,3 GB trống |
+| Local: "cần tải model" | Cài đặt › Model › Local › **Tải model**; cần ~1,6 GB trống |
 | Local dịch sót vài chữ Hán | Giới hạn của model 3B; trỏ **GGUF tuỳ chỉnh** tới bản 7B nếu máy đủ RAM (≥16 GB) |
 | Khử ồn làm nhận dạng kém hơn | Tắt "Khử tiếng ồn nền" (hoặc thử Apple Voice Processing thay thế) |
 | Build lần đầu rất lâu | llama.cpp đang được biên dịch; chỉ lần đầu. Cần `cmake` + `clang` |
@@ -285,7 +285,7 @@ Bạn có thể mở DevTools trong bản dev (`npm run dev`) để xem log `[So
                  ┌ Soniox (WebSocket từ giao diện; từ điển + ngữ cảnh hồ sơ môn)
 Micro / hệ thống ─► Rust capture ─► DSP thread (resample · HPF · GTCRN · AGC · VAD) ─► IPC nhị phân ─┼ Qwen LiveTranslate (Rust WS)
                                                                                                     ├ OpenAI Realtime (Rust WS)
-                                                                                                    └ Local: Silero VAD → SenseVoice → Qwen2.5 (llama.cpp)
+                                                                                                    └ Local: Silero VAD → SenseVoice → Hy-MT2 (llama.cpp)
                                                                                                                           │
                                                              Overlay · Ghi chú · Thư viện (Markdown + JSON)  ◄────────────┘
 ```
@@ -293,7 +293,7 @@ Micro / hệ thống ─► Rust capture ─► DSP thread (resample · HPF · G
 - **Tauri 2** (Rust backend, giao diện HTML/JS không framework, không bundler)
 - **cpal** / **ScreenCaptureKit** / **WASAPI** thu âm; **coreaudio-rs** cho Apple Voice Processing; **rubato** resample
 - **sherpa-onnx**: Silero VAD, GTCRN khử ồn, SenseVoice nhận dạng, Piper TTS
-- **llama-cpp-2** (llama.cpp): Qwen2.5-3B-Instruct GGUF, Metal trên Apple Silicon
+- **llama-cpp-2** (llama.cpp): Hy-MT2-1.8B GGUF (GGUF instruct bất kỳ làm model tuỳ chỉnh), Metal trên Apple Silicon
 - **reqwest / tokio-tungstenite** cho các engine cloud
 
 Mã Rust được kiểm bằng `cargo clippy --all-targets` (0 cảnh báo) và test chạy model thật trên Linux/CI; các phần chỉ có trên macOS (ScreenCaptureKit, Voice Processing, Metal) kiểm trên MacBook.
@@ -311,7 +311,7 @@ src/                     giao diện (HTML/CSS/JS thuần, không bundler)
   js/glossary/           từ điển tài chính Trung–Anh–Việt
 src-tauri/               backend Rust (Tauri 2)
   src/audio/             thu âm: cpal, ScreenCaptureKit, WASAPI, Apple Voice Processing, DSP micro
-  src/local/             engine offline: VAD → SenseVoice → Qwen2.5 (llama.cpp)
+  src/local/             engine offline: VAD → SenseVoice → Hy-MT2 (llama.cpp)
   src/commands/          lệnh Tauri: engine cloud, TTS, phiên, tải model
 docs/project-changelog.md  lịch sử thay đổi (CI dùng làm release notes)
 docs/tts_guide*.md         hướng dẫn giọng đọc
@@ -324,4 +324,4 @@ scripts/tauri-with-env.mjs chạy dev/build (.env, ký ad-hoc, tắt file cập 
 
 ## Ghi công & giấy phép
 
-Lecture Edition do **ttkien2035** phát triển. Dựa trên [My Translator](https://github.com/phuc-nt/my-translator) của Nguyễn Trọng Phúc — MIT License. Phần tuỳ biến trong fork này cũng theo MIT. Model: [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) (FunAudioLLM), [Qwen2.5](https://huggingface.co/Qwen) (Alibaba), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — theo giấy phép riêng của từng model.
+Lecture Edition do **ttkien2035** phát triển. Dựa trên [My Translator](https://github.com/phuc-nt/my-translator) của Nguyễn Trọng Phúc — MIT License. Phần tuỳ biến trong fork này cũng theo MIT. Model: [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) (FunAudioLLM), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — theo giấy phép riêng của từng model.

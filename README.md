@@ -33,7 +33,7 @@ A **real-time** speech translation app for macOS and Windows, tuned for **listen
 | ☁️ **Soniox** (recommended) | cloud | ~2 s | ~$0.12/hour | 70+ source languages; uses the course profile's **glossary** and context |
 | 🌏 **Qwen LiveTranslate** | cloud (Alibaba) | ~4 s | free (preview) | reachable from mainland China without a VPN; text only |
 | ⚡ **OpenAI Realtime** | cloud | ~2 s | ~$4/hour | translated voice output; needs a VPN in China |
-| 🖥️ **Local** (offline) | on device, pure Rust | ~2–3 s after each sentence | free | SenseVoice (speech recognition) + Qwen2.5-3B (translation, Metal on Apple Silicon); the course glossary goes into the prompt |
+| 🖥️ **Local** (offline) | on device, pure Rust | ~2–3 s after each sentence | free | SenseVoice (speech recognition) + Tencent Hy-MT2-1.8B (dedicated translation model, Metal on Apple Silicon); the course glossary goes into the prompt |
 
 Each engine's model name can be changed in **Cài đặt › Model** (Settings › Model), including a custom GGUF for Local. The same screen holds a **helper LLM** slot (DeepSeek / Qwen DashScope / Zhipu GLM / OpenAI / any OpenAI-compatible API) for the upcoming academic re-translation and summary features.
 
@@ -78,7 +78,7 @@ Each engine's model name can be changed in **Cài đặt › Model** (Settings �
 - **Light on resources** (only the Local model may be heavy):
   - no blur or transparency, no animations running during a lecture, no web fonts;
   - the transcript renders incrementally: each sentence costs the same however long the lecture runs, and all tokens in one frame are drawn once.
-- **Nothing is downloaded at install.** Models download only when you press **Tải model** (Download models): noise suppression + VAD ~1.2 MB, Local ~2.3 GB, all SHA-256 verified.
+- **Nothing is downloaded at install.** Models download only when you press **Tải model** (Download models): noise suppression + VAD ~1.2 MB, Local ~1.6 GB, all SHA-256 verified.
 - `settings.json` is written atomically with a `.bak` copy; API keys are never logged.
 
 ---
@@ -122,7 +122,7 @@ No Python, Homebrew or anything else to install.
 3. **Cài đặt › Micro** (Settings › Microphone): press **Tải model** (1.2 MB) to enable noise suppression. On a MacBook, also try **Apple Voice Processing**.
    - Keep noise suppression on; turn VAD on for lectures with long pauses.
    - If recognition gets *worse*, turn noise suppression off (STT copes well with noise on its own).
-4. (Optional) **Cài đặt › Model › Local › Tải model** (2.3 GB, once) for offline translation without network or VPN.
+4. (Optional) **Cài đặt › Model › Local › Tải model** (1.6 GB, once) for offline translation without network or VPN.
 5. On the Live bar, choose the **🎤 Micro** source and your course profile, then press **▶ Bắt đầu** (Start).
 
 ---
@@ -194,7 +194,7 @@ cd src-tauri
 cargo check && cargo clippy --all-targets      # must be warning-free
 cargo test                                     # tests that need no models
 # Local engine against real models (the app's installed model folder works):
-MT_TEST_SENSEVOICE_DIR=/path/sensevoice MT_TEST_GGUF=/path/qwen2.5-3b-instruct-q4_k_m.gguf \
+MT_TEST_SENSEVOICE_DIR=/path/sensevoice MT_TEST_GGUF=/path/Hy-MT2-1.8B-Q6_K.gguf \
   MT_TEST_WAV=/path/zh.wav cargo test --lib local:: -- --include-ignored --nocapture
 ```
 
@@ -291,7 +291,7 @@ Everything stays on your machine. Only the cloud engine you choose receives audi
 | Soniox error 401/402 | Wrong key or no credit — check console.soniox.com |
 | Qwen `WebSocket error` right after Start | The DashScope key must be created in the **Singapore** region (international endpoint) |
 | "⏩ Mạng chậm" (slow network) toasts keep appearing | Weak Wi-Fi: switch to Qwen (no VPN needed) or Local (offline) |
-| Local says models are needed | Cài đặt › Model › Local › **Tải model**; needs ~2.3 GB free |
+| Local says models are needed | Cài đặt › Model › Local › **Tải model**; needs ~1.6 GB free |
 | Local leaves a few Chinese characters untranslated | A limit of the 3B model; point **custom GGUF** at a 7B model if you have ≥16 GB RAM |
 | Noise suppression makes recognition worse | Turn it off, or try Apple Voice Processing instead |
 | The first build takes very long | llama.cpp is compiling; first time only. Needs `cmake` + `clang` |
@@ -307,7 +307,7 @@ In a dev build (`npm run dev`), DevTools shows the `[Soniox]`, `[Mic]` and `[Loc
                   ┌ Soniox (WebSocket from the UI; profile glossary + context)
 Mic / system ─► Rust capture ─► DSP thread (resample · HPF · GTCRN · AGC · VAD) ─► binary IPC ─┼ Qwen LiveTranslate (Rust WS)
                                                                                                 ├ OpenAI Realtime (Rust WS)
-                                                                                                └ Local: Silero VAD → SenseVoice → Qwen2.5 (llama.cpp)
+                                                                                                └ Local: Silero VAD → SenseVoice → Hy-MT2 (llama.cpp)
                                                                                                                       │
                                                          Live view · Notes · Library (Markdown + JSON)  ◄─────────────┘
 ```
@@ -315,7 +315,7 @@ Mic / system ─► Rust capture ─► DSP thread (resample · HPF · GTCRN · 
 - **Tauri 2** (Rust backend; HTML/JS UI with no framework and no bundler)
 - **cpal** / **ScreenCaptureKit** / **WASAPI** capture; **coreaudio-rs** for Apple Voice Processing; **rubato** resampling
 - **sherpa-onnx**: Silero VAD, GTCRN noise suppression, SenseVoice recognition, Piper TTS
-- **llama-cpp-2** (llama.cpp): Qwen2.5-3B-Instruct GGUF, Metal on Apple silicon
+- **llama-cpp-2** (llama.cpp): Hy-MT2-1.8B GGUF (any instruct GGUF as a custom model), Metal on Apple silicon
 - **reqwest / tokio-tungstenite** for the cloud engines
 
 Rust is checked with `cargo clippy --all-targets` (zero warnings) and with tests against real models on Linux/CI. The macOS-only parts (ScreenCaptureKit, Voice Processing, Metal) are verified on a MacBook.
@@ -333,7 +333,7 @@ src/                     UI (plain HTML/CSS/JS, no bundler)
   js/glossary/           Chinese–English–Vietnamese finance glossary
 src-tauri/               Rust backend (Tauri 2)
   src/audio/             capture: cpal, ScreenCaptureKit, WASAPI, Apple Voice Processing, mic DSP
-  src/local/             offline engine: VAD → SenseVoice → Qwen2.5 (llama.cpp)
+  src/local/             offline engine: VAD → SenseVoice → Hy-MT2 (llama.cpp)
   src/commands/          Tauri commands: cloud engines, TTS, sessions, model downloads
 docs/project-changelog.md  change history (CI uses it as release notes)
 docs/tts_guide*.md         text-to-speech guide (English / Vietnamese)
@@ -346,4 +346,4 @@ scripts/tauri-with-env.mjs dev/build wrapper (.env, ad-hoc signing, skips update
 
 ## Credits & license
 
-Lecture Edition by **ttkien2035**. Based on [My Translator](https://github.com/phuc-nt/my-translator) by Nguyễn Trọng Phúc — MIT License. The changes in this fork are MIT as well. Models: [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) (FunAudioLLM), [Qwen2.5](https://huggingface.co/Qwen) (Alibaba), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — each under its own license.
+Lecture Edition by **ttkien2035**. Based on [My Translator](https://github.com/phuc-nt/my-translator) by Nguyễn Trọng Phúc — MIT License. The changes in this fork are MIT as well. Models: [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) (FunAudioLLM), [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) (Tencent, Apache-2.0), [Silero VAD](https://github.com/snakers4/silero-vad), GTCRN, [Piper](https://github.com/rhasspy/piper) — each under its own license.

@@ -214,3 +214,43 @@ Apple Voice Processing, Soniox reset 3 phút, Local trong app, ghi chú/đánh d
 - **QA trên Mac, chụp màn hình cả hai theme:**
   - Live (đang dịch, có ⭐), Thư viện › ôn bài, Cài đặt (thẻ + tab Model/Micro), modal chọn engine, chế độ Đọc (đoạn đang đọc).
   - Kiểm: không còn chữ trắng trên nền trắng; traffic lights và thanh cuộn đổi theo theme; *Theo hệ thống* theo đúng khi đổi trong System Settings.
+
+---
+
+### Model dịch Local: Qwen2.5-3B → Hy-MT2-1.8B Q6_K — đã làm (kỹ sư trưởng, 2026-09-26; Kiên chốt)
+
+- **Lý do (đo trên WSL CPU, greedy, 25 câu bài giảng tài chính, cùng đường gọi như `llm.rs`):**
+
+  | Model | File | Câu lẫn chữ Hán | Thời gian/câu (CPU) |
+  |---|---|---|---|
+  | Qwen2.5-3B Q4_K_M (cũ) | 2,1 GB | 15/25, thêm 1 câu ra tiếng Anh | 2,0 s |
+  | **Hy-MT2-1.8B Q6_K** | 1,47 GB | 0/25 | 1,4 s |
+  | Hy-MT2-1.8B Q4_K_M | 1,13 GB | 0/25 | 1,2 s |
+
+  Bản Q4_K_M có câu bị mất chữ số (3,2 lần → "3 lần"), nên chọn Q6_K.
+
+  Đã loại (đo cùng bộ câu):
+  - Qwen3-4B-2507: sai nội dung.
+  - Qwen3.5-4B: chậm hơn, sai thứ trong tuần.
+  - Gemma-3-4B: tự thêm "đô la".
+  - Qwen3-1.7B: sai số liệu.
+  - Gemma-4-E4B: template chưa được llama.cpp hỗ trợ, nặng 5 GB.
+
+  Kiên không cần tuỳ chọn 7B.
+- **`models.rs`:** model `hy-mt2-1.8b-q6`, tải từ `tencent/Hy-MT2-1.8B-GGUF`, dự phòng hf-mirror.
+  - SHA `d98fe604…`, 1 474 785 120 B, giấy phép Apache-2.0.
+  - Sau khi tải xong, tự xoá `qwen2.5-3b-instruct-q4_k_m.gguf` cũ (giải phóng 2,1 GB), trừ khi GGUF tuỳ chỉnh đang trỏ vào file đó.
+- **`llm.rs`, prompt theo họ model:**
+  - Hy-MT: không có system prompt. Câu lệnh cố định lấy nguyên văn model card, đặt trong lượt user; glossary theo mẫu `参考下面的翻译：`. Dùng câu lệnh tiếng Trung khi một phía là tiếng Trung, còn lại dùng tiếng Anh.
+  - Model khác: system prompt như cũ.
+- **`llm.rs`, ba lỗi template/tokenizer phát hiện khi đo:**
+  1. llama.cpp (template legacy) nhận nhầm template Hy-MT2 thành HunyuanVL, ghép chữ trước `<｜hy_User｜>` và không có lượt assistant. Đã tự dựng đúng theo Jinja của GGUF.
+  2. App luôn tokenize với `AddBos::Never`, nên GGUF Gemma (cần `<bos>`) ra câu rỗng 9/15. Nay theo `tokenizer.ggml.add_bos_token`.
+  3. GGUF Qwen3 / Qwen3.5 dạng hybrid tự "suy nghĩ" trước khi dịch. Nay chèn sẵn khối `<think></think>` rỗng.
+
+  Unit test không cần model: nhận diện họ, prompt đúng model card, template, BOS. Test `translates_finance_sentence` (ignored) kiểm cả không còn chữ Hán trong bản dịch; đã chạy qua trên Hy-MT2 Q6, Gemma-3-4B, Qwen3-1.7B.
+- **UI/tài liệu:** kích thước tải 2,3 → 1,6 GB; các chữ "Qwen2.5" trong Cài đặt, modal và README đổi thành Hy-MT2; status nạp là "Đang nạp model dịch…".
+- **QA trên Mac cần đo:**
+  - Cài đặt › Model › Local › Tải model: tải đúng `Hy-MT2-1.8B-Q6_K.gguf`, file Qwen cũ bị xoá.
+  - `MT_TEST_GGUF=…/Hy-MT2-1.8B-Q6_K.gguf cargo test --release --lib local::llm -- --ignored --nocapture`. Ghi: thời gian load, ms/câu trên Metal (Qwen2.5 cũ: 0,4–0,5 s/câu) và thời gian warm-up lần đầu.
+  - Dịch một buổi thật bằng Local: có còn câu lẫn chữ Hán không, tốc độ có theo kịp giảng viên không.

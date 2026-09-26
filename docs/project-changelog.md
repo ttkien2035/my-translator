@@ -34,7 +34,7 @@ Bản phát hành miễn phí, không ký bằng Apple Developer ID, nên macOS 
 - **Hồ sơ môn học** + từ điển tài chính Trung–Anh–Việt 278 thuật ngữ, nạp vào Soniox (`terms` / `translation_terms`); đổi hồ sơ giữa giờ áp dụng ngay.
 - **Ghi chú trong buổi** (`⌘⇧N`), chép câu (`⌘⇧C`), đánh dấu ⭐ ❓ 📝 (`⌘⇧1/2/3`), tự đánh dấu 📝 khi giảng viên nói 会考/考点…
 - **Thư viện ôn bài**: đọc lại từng câu, đánh dấu và viết tiếp ghi chú sau giờ học, lọc/tìm, nhảy tới câu.
-- **Engine Local thuần Rust**: SenseVoice-small (sherpa-onnx) + Qwen2.5-3B-Instruct (llama.cpp, Metal); bỏ Python/MLX; model chỉ tải khi bấm "Tải model" (SHA-256).
+- **Engine Local thuần Rust**: SenseVoice-small (sherpa-onnx) + Hy-MT2-1.8B của Tencent (model chuyên dịch, llama.cpp, Metal); bỏ Python/MLX; model chỉ tải khi bấm "Tải model" (1,6 GB, SHA-256). Chọn Hy-MT2 thay Qwen2.5-3B sau khi đo trên 25 câu bài giảng: không còn câu lẫn chữ Hán (Qwen2.5: 15/25), nhanh hơn, file nhỏ hơn.
 - **Micro cho lớp học**: resample chống aliasing, lọc 80 Hz, khử ồn GTCRN, AGC, VAD Silero, Apple Voice Processing (macOS).
 - **Cài đặt › Model**: chọn engine và tên model, ô LLM hỗ trợ (DeepSeek / DashScope / Zhipu / OpenAI / tuỳ chỉnh).
 - **Giao diện sáng (mặc định) / tối / theo hệ thống** — Cài đặt › Hiển thị hoặc menu ⋯; mọi màu chữ đạt tương phản WCAG AA ở cả hai giao diện; chữ bản dịch mặc định 18 px.

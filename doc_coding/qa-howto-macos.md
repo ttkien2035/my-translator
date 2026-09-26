@@ -40,7 +40,7 @@ Lưu ý: voice `Eddy` (đầu danh sách `say -v '?'`) không cài sẵn, cho ra
 ```bash
 cd src-tauri
 MT_TEST_SENSEVOICE_DIR="$S/sv" cargo test --lib local::asr -- --ignored --nocapture
-MT_TEST_GGUF="$M/qwen2.5-3b-instruct-q4_k_m.gguf" cargo test --lib local::llm -- --ignored --nocapture
+MT_TEST_GGUF="$M/Hy-MT2-1.8B-Q6_K.gguf" cargo test --release --lib local::llm -- --ignored --nocapture
 ```
 
 Lọc bớt log ggml/llama: `2>&1 | grep -vE "^ggml_|^llama_|^load|^print_info"`.

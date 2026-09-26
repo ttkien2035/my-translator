@@ -48,3 +48,20 @@ Bước 3 viết đủ rõ để người dùng phổ thông làm được. Vấ
 | # | Mức | Vấn đề | Đề xuất |
 |---|---|---|---|
 | I5 | low | File chạy bên trong app vẫn tên `my-translator` (`Contents/MacOS/my-translator`), nên log macOS và một số công cụ hiện `my-translator` thay vì MeowLaoshi. | Đổi `mainBinaryName` (Tauri 2) hoặc tên package Cargo sang `meowlaoshi`, nếu không ảnh hưởng updater. |
+
+## Thiết lập sau khi cài (mục 3–4 của hướng dẫn) — FAIL với Local
+
+Kiên báo "test thành công hết". QA kiểm dữ liệu app trên máy:
+
+- ✓ Key Soniox đã lưu; chế độ dịch đang là Local; Trung → Việt.
+- ✓ `local-models/` có `Hy-MT2-1.8B-Q6_K.gguf` và `x-asr-zh-en-punct-int8/` (tải từ **Cài đặt › Model › Local**).
+- ✗ **Không có `audio-models/`** → thiếu Silero VAD. `local_start` sẽ trả `models_missing: Silero VAD chưa được tải (Cài đặt › Micro › Tải model)`, nên **Local không bắt đầu được**.
+- Chưa có phiên nào trong `transcripts/`.
+
+Kiên xác nhận: đây đúng là chỗ người dùng dễ bị kẹt.
+
+| # | Mức | Vấn đề | Đề xuất |
+|---|---|---|---|
+| I6 | **high** | Local cần 3 model nhưng tải ở 2 màn hình khác nhau. Người dùng tải xong 1,6 GB ở mục Local, tưởng là đủ, bấm Bắt đầu thì bị lỗi chỉ đường sang mục Micro. | Xem `work-plan.md` › **Commit E** (E1 một nút tải cả gói, E2 lỗi có nút sửa). |
+
+Kiên giao kỹ sư trưởng làm **Commit E** trong `work-plan.md`: làm app dễ cài, dễ dùng nhất cho người dùng phổ thông.

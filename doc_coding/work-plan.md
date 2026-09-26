@@ -304,3 +304,42 @@ Thay cho mục "Giữ nguyên có chủ đích" ở trên.
 - **Repo:** đã đổi tên thành `github.com/ttkien2035/meowlaoshi` (2026-09-26); URL trong app/updater/workflow/README đã trỏ sang đó, URL cũ tự chuyển hướng. QA trên Mac: `git remote set-url origin git@github.com:ttkien2035/meowlaoshi.git` (hoặc URL https tương ứng).
 - **Ghi công:** giữ dòng bản quyền gốc trong `LICENSE` theo yêu cầu của giấy phép MIT; README và mục Giới thiệu ghi rõ điều đó, kèm ghi công icon Noto.
 - **QA trên Mac:** build lại; icon mèo hiện đúng trong Dock/Finder/Launchpad (không có khung xám); app mở như lần đầu (hộp chọn cách dịch); dữ liệu nằm trong thư mục mới. Thư mục cũ có thể xoá tay: `~/Library/Application Support/com.personal.translator`, `~/Library/Application Support/My Translator`, `~/Library/WebKit/com.personal.translator`.
+
+---
+
+## Commit E — Người dùng phổ thông: cài dễ, dùng dễ (Kiên giao, 2026-09-26) — **CHƯA LÀM, ưu tiên cao**
+
+**Kiên:** *"làm người dùng dễ bị kẹt … xử lý làm sao cho người dùng (non-tech user) dễ cài đặt, dễ xài nhất."*
+
+Bằng chứng: Kiên cài bản release 1.0.0 như người dùng phổ thông (báo cáo `qa-reports/2026-09-26-install-ux-dmg.md`). Cài và mở được, nhưng kẹt ở bước 2 (tháo đĩa), và sau khi "thiết lập xong" thì Local **không chạy được**: đã tải 1,6 GB model ở **Cài đặt › Model › Local** nhưng thiếu Silero VAD (1 MB) nằm ở màn hình khác (**Cài đặt › Micro**). App chỉ báo lỗi bằng toast chỉ đường menu.
+
+### Nguyên tắc (áp cho mọi mục bên dưới)
+
+1. **Không bắt người dùng biết cấu trúc app.** Không có thông báo nào chỉ nói "vào Cài đặt › X › Y". Mọi lỗi người dùng tự sửa được phải kèm **nút sửa ngay** (Tải ngay / Mở cài đặt quyền / Dán key).
+2. **Một việc = một nút.** Một tính năng cần nhiều file thì một nút tải tất cả.
+3. **Mặc định đúng cho người dùng mục tiêu** (sinh viên Việt học tài chính ở Trung Quốc): Trung → Việt, từ điển tài chính, micro.
+4. **Lần đầu có dẫn đường; sau đó không làm phiền.**
+
+### Việc cần làm (thứ tự ưu tiên)
+
+| # | Ưu tiên | Việc | Chi tiết / tiêu chí |
+|---|---|---|---|
+| E1 | P0 | **Một nút tải gói offline** | Nút tải Local tải **cả** X-ASR + Hy-MT2 + Silero VAD (và GTCRN nếu cần). Trạng thái hiển thị một dòng: "Offline: sẵn sàng" / "chưa tải (1,6 GB)". Giữ nút tải riêng ở Micro nếu muốn, nhưng Local không bao giờ còn thiếu VAD sau khi bấm nút Local. |
+| E2 | P0 | **Lỗi có nút sửa** | Bấm Bắt đầu mà thiếu model → hộp thoại "Cần tải gói offline (1,6 GB)" + nút **Tải ngay** (hiện tiến độ, xong thì tự bắt đầu). Soniox thiếu key → hộp thoại có ô dán key + nút **Lưu & bắt đầu**. Thay các toast `models_missing` hiện tại (`app.js` quanh dòng 3123 và 2507). |
+| E3 | P0 | **Trình hướng dẫn lần đầu** thay hộp "Chọn cách dịch" | 3–4 màn, chữ tiếng Việt đơn giản, có nút Bỏ qua: ① "Bạn có key Soniox không?" → dán key, **kiểm tra key ngay** (kết nối thử) → ✓/✗ có lời giải thích; "Chưa có" → chọn Offline. ② "Tải gói offline để dùng khi mất mạng?" (khuyên có, nói rõ 1,6 GB, tải nền). ③ "Bạn học môn gì?" → Tài chính (nạp sẵn ~480 thuật ngữ) / Khác. ④ Cho phép micro + **nói thử** có thanh mức âm để biết micro chạy. Kết thúc ở màn chính với nút Bắt đầu nổi bật. |
+| E4 | P0 | **Sửa hướng dẫn cài + cửa sổ DMG** | I1–I4 trong báo cáo cài đặt: bỏ bước tháo đĩa khỏi luồng chính; ảnh nền DMG có mũi tên và 3 dòng tiếng Việt (bước tiếp theo, cả bước "Vẫn mở"); ảnh chụp trong hướng dẫn; "M1 trở lên". Hướng dẫn viết lại theo trình hướng dẫn mới (E3), ngắn hơn. |
+| E5 | P1 | **Quyền micro bị từ chối** | Phát hiện không có quyền (hoặc luồng micro toàn 0) → hộp thoại giải thích + nút mở thẳng **Quyền riêng tư & Bảo mật › Micrô** (`x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone`). Hiện chưa thấy xử lý riêng trong code. |
+| E6 | P1 | **Cài đặt không mất khi đóng** | Hiện phải bấm **Lưu & đóng**; kiểm tra đóng bằng ✕/Esc có lưu không. Nên tự lưu từng thay đổi, hoặc hỏi trước khi đóng nếu có thay đổi chưa lưu. |
+| E7 | P1 | **Từ điển tài chính mặc định** | Hồ sơ mặc định có sẵn từ điển tài chính (hoặc do E3 chọn), thay vì phải tạo hồ sơ rồi bấm nạp. |
+| E8 | P1 | **Mất mạng khi dùng Soniox** | Nếu gói offline đã tải: đề nghị chuyển sang Local bằng một nút (hoặc tự chuyển, báo rõ). Nếu chưa tải: nói rõ lý do và cách khắc phục. |
+| E9 | P2 | **Bỏ bước "Vẫn mở"** | Chỉ có cách ký Developer ID + notarize (Apple Developer Program, 99 USD/năm). **Kiên quyết định**; lead chỉ ghi phương án và việc cần làm trong CI nếu Kiên đồng ý. |
+| E10 | P2 | Tên file chạy | I5: `Contents/MacOS/my-translator` → `meowlaoshi` (`mainBinaryName`), nếu không ảnh hưởng updater. |
+
+### Tiêu chí nghiệm thu (QA chạy trên Mac)
+
+"Bài test người mới": xoá dữ liệu app (thư mục `com.ttkien2035.meowlaoshi`, có sao lưu) hoặc dùng tài khoản macOS mới; cài từ DMG release; **không đọc hướng dẫn**, chỉ làm theo chữ trên màn hình.
+
+- Có key Soniox trong tay: từ lúc mở DMG tới bản dịch đầu tiên **≤ 5 phút**, không phải hỏi ai.
+- Không key, chọn offline: tới bản dịch đầu tiên chỉ tốn thời gian tải 1,6 GB, **không có ngõ cụt**.
+- Cố tình gây lỗi (thiếu model, key sai, từ chối micro, tắt Wi-Fi giữa chừng): **mọi thông báo lỗi đều có nút sửa**, sửa xong dùng tiếp không cần khởi động lại app.
+- Mở app lần 2: không hiện lại trình hướng dẫn; mọi thiết lập còn nguyên.

@@ -9,54 +9,53 @@ Format: `## v<version> - <YYYY-MM-DD>` followed by content until the next `## v`
 
 ## v1.0.0 - 2026-09-26
 
-**MeowLaoshi 猫老师** (tên cũ: My Translator — Lecture Edition): bản đầu tiên của ttkien2035. Dịch bài giảng tiếng Trung sang tiếng Việt theo thời gian thực và ghi chú, cho sinh viên tài chính – kinh tế.
-*First release of MeowLaoshi (formerly My Translator — Lecture Edition): real-time Chinese → Vietnamese lecture translation with notes.*
+**MeowLaoshi 猫老师** (formerly My Translator — Lecture Edition) — the first release by ttkien2035. Real-time Chinese → Vietnamese translation of lectures, with notes, built for finance and economics students.
 
-### ⬇️ Tải file nào / Which file
+### ⬇️ Which file to download
 
-| Máy / Machine | File |
+| Your Mac | File |
 |---|---|
-| Mac chip Apple (M1 trở lên) | `MeowLaoshi_1.0.0_aarch64.dmg` |
-| Mac Intel | `MeowLaoshi_1.0.0_x64.dmg` |
-| Windows 10/11 | `MeowLaoshi_1.0.0_x64-setup.exe` |
+| Apple silicon (M1 or later) | `MeowLaoshi_1.0.0_aarch64.dmg` |
+| Intel | `MeowLaoshi_1.0.0_x64.dmg` |
 
-Các file `.app.tar.gz`, `.sig` và `latest.json` dành cho bộ tự cập nhật, không cần tải. / *The `.app.tar.gz`, `.sig` and `latest.json` files are for the auto-updater.*
+This release is macOS only; a Windows build will follow in a later version.
+The `.app.tar.gz`, `.sig` and `latest.json` files are used by the in-app updater — you don't need to download them.
 
-### 🔓 Mở lần đầu trên Mac / First launch on macOS
+### 🔓 First launch on macOS
 
-Bản phát hành miễn phí, không ký bằng Apple Developer ID, nên macOS chặn ở lần mở đầu. / *Free build without an Apple Developer ID, so macOS blocks the first launch:*
+The app is free and not signed with an Apple Developer ID, so macOS blocks the first launch:
 
-1. Kéo **MeowLaoshi** vào **Applications**, mở app → macOS báo không mở được → bấm **Xong**. / *Drag it to Applications, open it, dismiss the warning.*
-2. **Cài đặt hệ thống › Quyền riêng tư & Bảo mật** → kéo xuống → **Vẫn mở** → nhập mật khẩu máy. / *System Settings › Privacy & Security › **Open Anyway**.*
-3. Chỉ làm một lần. Các bản sau cập nhật trong app (Cài đặt › Giới thiệu). / *Once only; later versions update in-app.*
+1. Drag **MeowLaoshi** into **Applications** and open it. macOS says it can't be opened — click **Done**.
+2. Open **System Settings › Privacy & Security**, scroll down and click **Open Anyway**, then enter your Mac password.
+3. You only do this once. Later versions update from inside the app (**Settings › About**).
 
-### Mới
-- **Tự dẫn đường cho người mới**: lần đầu mở, 4 bước ngắn — key Soniox (kiểm tra kết nối ngay), gói offline, môn học (nạp sẵn từ điển tài chính), thử micro có thanh mức âm. Về sau, hễ thiếu gì app hiện hộp thoại có nút sửa ngay: **Tải ngay** gói offline (một nút tải đủ nhận dạng + dịch + ngắt câu), ô dán key khi key sai hoặc hết hạn mức, **Mở cài đặt quyền Micrô** khi macOS chặn micro, **Dịch offline** khi mất kết nối Soniox. Cửa sổ DMG có mũi tên và 3 bước tiếng Việt.
-- **Hồ sơ môn học** + từ điển Trung–Anh–Việt ~480 thuật ngữ (tài chính cơ bản, bậc thạc sĩ, bộ CUFE), nạp vào Soniox (`terms` / `translation_terms`, cắt vừa giới hạn 8 000 token — ưu tiên thuật ngữ dài) và làm hotword cho engine Local; đổi hồ sơ giữa giờ áp dụng ngay.
-- **Ghi chú trong buổi** (`⌘⇧N`), chép câu (`⌘⇧C`), đánh dấu ⭐ ❓ 📝 (`⌘⇧1/2/3`), tự đánh dấu 📝 khi giảng viên nói 会考/考点…
-- **Thư viện ôn bài**: đọc lại từng câu, đánh dấu và viết tiếp ghi chú sau giờ học, lọc/tìm, nhảy tới câu.
-- **Engine Local thuần Rust**: X-ASR Zipformer zh-en (sherpa-onnx; có dấu câu; thuật ngữ trong từ điển môn học thành hotword) + Hy-MT2-1.8B của Tencent (model chuyên dịch, llama.cpp, Metal); bỏ Python/MLX; model chỉ tải khi bấm "Tải model" (1,6 GB, SHA-256). Cả hai model được chọn sau khi đo (README › *Kết quả đo model Local*): X-ASR ít lỗi hơn SenseVoice-small trên bài giảng thật và giảng đường mô phỏng, nhận đúng 99 % thuật ngữ tài chính nhờ hotword; Hy-MT2 không còn câu lẫn chữ Hán (Qwen2.5-3B: 15/25).
-- **Micro cho lớp học**: resample chống aliasing, lọc 80 Hz, VAD Silero, Apple Voice Processing (macOS); khử ồn GTCRN và AGC có sẵn nhưng tắt mặc định — đo trên bài giảng thật: GTCRN làm nhận dạng sai gấp đôi trong phòng vang có tiếng sinh viên, AGC không giúp gì.
-- **Cài đặt › Model**: chọn engine và tên model, ô LLM hỗ trợ (DeepSeek / DashScope / Zhipu / OpenAI / tuỳ chỉnh).
-- **Giao diện sáng (mặc định) / tối / theo hệ thống** — Cài đặt › Hiển thị hoặc menu ⋯; mọi màu chữ đạt tương phản WCAG AA ở cả hai giao diện; chữ bản dịch mặc định 18 px.
-- **Giao diện macOS**: cửa sổ thường (không còn luôn nằm trên), traffic lights gốc, font hệ thống, nền đặc, cửa sổ nổi ⤢ khi chiếu slide; màn hình chính tiếng Việt; modal chọn engine chỉ lần đầu.
+### New
+- **Guided first run**: four short steps on first launch — Soniox key (checked right away), offline pack, course (loads the finance glossary), and a microphone test with a level meter. Whenever something is missing later, the app shows a dialog with a button that fixes it: **Download now** for the offline pack (one button fetches recognition + translation + sentence detection), a key field when the key is wrong or out of quota, **Open microphone settings** when macOS blocks the mic, and **Translate offline** when the Soniox connection drops. The DMG window shows an arrow and the three install steps.
+- **Course profiles** with a Chinese–English–Vietnamese glossary of ~480 terms (core finance, master's-level finance, CUFE-specific), sent to Soniox (`terms` / `translation_terms`, trimmed to its 8 000-token limit with longer terms first) and used as hotwords by the Local engine. Switching profile mid-lecture takes effect immediately.
+- **In-class notes** (`⌘⇧N`), copy sentence (`⌘⇧C`), ⭐ ❓ 📝 markers (`⌘⇧1/2/3`), and an automatic 📝 when the lecturer says 会考 / 考点 and similar.
+- **Study library**: re-read a session sentence by sentence, mark sentences and keep writing notes after class, filter, search and jump to a sentence.
+- **Pure-Rust Local engine**: X-ASR Zipformer zh-en (sherpa-onnx, with punctuation; course glossary terms become hotwords) + Tencent Hy-MT2-1.8B (a dedicated translation model, llama.cpp, Metal). Python/MLX removed. Models download only when you press "Download" (1.6 GB, SHA-256 verified). Both models were chosen by measurement (README › *Local model benchmarks*): X-ASR makes fewer errors than SenseVoice-small on real and simulated-classroom lectures and recognises 99 % of finance terms with hotwords; Hy-MT2 leaves no untranslated Chinese (Qwen2.5-3B: 15 of 25 sentences). On a MacBook Air M5 a translation appears about 1 s after each sentence.
+- **Classroom microphone chain**: anti-aliased resampling, 80 Hz high-pass, Silero VAD, Apple Voice Processing (macOS). GTCRN noise suppression and AGC are available but off by default — on real lectures GTCRN doubled recognition errors in a reverberant room with student chatter, and AGC did not help.
+- **Settings › Model**: choose the engine and model name, plus a helper-LLM slot (DeepSeek / DashScope / Zhipu / OpenAI / custom).
+- **Light (default) / dark / system theme** — Settings › Display or the ⋯ menu. All text meets WCAG AA contrast in both themes; translated text defaults to 18 px.
+- **macOS look and feel**: a normal window (no longer always on top), native traffic lights, system font, solid background, and a ⤢ floating window for when slides are projected. Vietnamese main screen; the engine picker appears only on first launch.
 
-### Sửa
-- Thay đổi trong Cài đặt không còn mất khi đóng bằng Esc hay nút quay lại (tự lưu).
-- Soniox mất chữ mỗi lần tự nối lại 3 phút; VAD cắt mất phụ âm đầu câu; câu rác từ khoảng lặng.
-- Engine Local: trong tiếng ồn liên tục, VAD không ngắt câu ở 8 s (đo được một đoạn 46 s → dịch trễ 46 s; X-ASR sập từ 50 s). Pipeline nay tự ngắt ở chỗ lặng sau 8 s, chậm nhất 12 s.
-- Cài đặt "Opacity" làm mờ toàn bộ giao diện còn 85 % (chữ nhạt đi, tốn thêm một lớp GPU) — đã bỏ, giao diện luôn đặc.
-- `settings.json` có thể bị xoá sạch; `.bak` có thể bị ghi đè bởi file hỏng; từ điển (`general` / `terms` / `text`) không được lưu.
-- Rò session OpenAI/Qwen; TTS vẫn đọc sau khi tạm dừng; TTS tự tắt khi lưu cài đặt; khoá API bị ghi ra log.
-- Nguồn "Cả hai" nối chuỗi thay vì trộn; luồng ScreenCaptureKit có thể không dừng khi đổi nguồn.
+### Fixed
+- Settings changes are no longer lost when leaving with Esc or the back button (they save automatically).
+- Soniox lost words at every 3-minute automatic reconnect; VAD clipped the first consonant of a sentence; silence produced junk sentences.
+- Local engine: under continuous noise, VAD never cut a sentence at 8 s (one 46 s segment was measured, i.e. 46 s of delay; X-ASR fails from 50 s). The pipeline now cuts at a quiet chunk after 8 s, 12 s at the latest.
+- The "Opacity" setting dimmed the whole interface to 85 % (paler text and an extra GPU layer) — removed; the interface is always solid.
+- `settings.json` could be wiped; `.bak` could be overwritten by a corrupt file; glossary fields (`general` / `terms` / `text`) were not saved.
+- OpenAI/Qwen sessions leaked; TTS kept speaking after pause; TTS switched itself off when settings were saved; API keys were written to the log.
+- The "Both" source concatenated audio instead of mixing it; the ScreenCaptureKit stream might not stop when switching source.
 
-### Hiệu năng
-- Audio qua IPC nhị phân, hàng đợi có giới hạn, chính sách "bám thời gian thực" khi mạng/máy chậm.
-- Bản dịch trực tiếp vẽ tăng dần và cuộn lại được cả buổi (trước chỉ ~800 ký tự cuối); bỏ hai đường O(n)/sự kiện (1 600 câu: 2,5 s → 0,29 s).
-- Bỏ blur, animation chạy suốt buổi, web font.
+### Performance
+- Audio over binary IPC, bounded queues, and a "stay real-time" policy when the network or machine is slow.
+- The live transcript renders incrementally and scrolls back through the whole session (previously only the last ~800 characters); two O(n)-per-event paths removed (1 600 sentences: 2.5 s → 0.29 s).
+- Removed blur, animations running for the whole session, and web fonts.
 
-### Dọn dẹp
-- Bỏ cấu hình agent `.opencode/`, benchmarks, hướng dẫn cài đặt và ảnh giao diện cũ, banner, `pnpm-lock.yaml`, giả lập `tauri-mock.js` (+ `npm run dev:web`), `web-speech-tts.js`, các lệnh `save/list/read_transcript` và `check_permissions`, thanh "Max Lines".
+### Cleanup
+- Removed agent configuration (`.opencode/`), benchmarks, the old install guide and screenshots, banner, `pnpm-lock.yaml`, the `tauri-mock.js` shim (and `npm run dev:web`), `web-speech-tts.js`, the `save/list/read_transcript` and `check_permissions` commands, and the "Max Lines" bar.
 
 ## v0.9.1 - 2026-07-11
 

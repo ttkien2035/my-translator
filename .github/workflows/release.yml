@@ -223,12 +223,12 @@ jobs:
           if [ ! -s "$OUT" ]; then
             echo "Release v${VERSION}" > "$OUT"
             echo "" >> "$OUT"
-            echo "See commits: https://github.com/ttkien2035/meowlaoshi/compare/...v${VERSION}" >> "$OUT"
+            echo "See commits: https://github.com/ttkien2035/meowlaoshi/commits/v${VERSION}" >> "$OUT"
           fi
 
           # Append auto-generated full changelog link
           echo "" >> "$OUT"
-          echo "**Full Changelog**: https://github.com/ttkien2035/meowlaoshi/compare/...v${VERSION}" >> "$OUT"
+          echo "**Full Changelog**: https://github.com/ttkien2035/meowlaoshi/commits/v${VERSION}" >> "$OUT"
 
           echo "--- Release notes preview ---"
           cat "$OUT"

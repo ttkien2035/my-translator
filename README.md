@@ -34,7 +34,7 @@ A **real-time** speech translation app for macOS and Windows, tuned for **listen
 | Engine | Runs | Latency (speech → text on screen) | Cost | Notes |
 |---|---|---|---|---|
 | ☁️ **Soniox** `stt-rt-v5` (recommended) | cloud | live text **~1.3 s** (90 % within 2.1 s); translation **~1.7 s** (90 % within 3.0 s) — *measured* | **$0.12/hour**, translation included | 60+ languages; uses the course profile's **glossary** and context; most accurate on real lectures (3.0 % errors vs 11.4 % for Local) |
-| 🖥️ **Local** (offline) | on device, pure Rust | appears **after each sentence**: ~1.9 s on an x86 CPU (0.35 s pause detection + 0.1 s recognition + 1.4 s translation) — *measured*; faster with Metal on Apple Silicon (not yet measured) | **free** | X-ASR Zipformer (punctuation; the course glossary becomes hotwords) + Tencent Hy-MT2-1.8B (glossary in the prompt); no network or VPN needed |
+| 🖥️ **Local** (offline) | on device, pure Rust | appears **after each sentence**: **~1.0 s** on a MacBook Air M5 with Metal (0.35 s pause detection + ~0.2 s recognition + ~0.45 s translation), ~1.9 s on an x86 CPU — *measured* | **free** | X-ASR Zipformer (punctuation; the course glossary becomes hotwords) + Tencent Hy-MT2-1.8B (glossary in the prompt); no network or VPN needed |
 | ⚡ **OpenAI Realtime** `gpt-realtime-translate` | cloud | not measured here | **≈ $3.06/hour** ($0.034/min translation + $0.017/min `gpt-realtime-whisper` transcription) | translated voice output; needs a VPN in mainland China; no glossary |
 | 🌏 **Qwen LiveTranslate** `qwen3-livetranslate-flash-realtime` | cloud (Alibaba, Singapore) | not measured here (Alibaba states 2.3 s for its newer LiveTranslate models) | **≈ $0.35/hour** (12.5 audio tokens/s at $7.50 per 1M) + a free quota for new accounts — *estimate* | reachable from mainland China without a VPN; text only; no glossary; Alibaba now lists this model as legacy |
 
@@ -309,7 +309,7 @@ In a dev build (`npm run dev`), DevTools shows the `[Soniox]`, `[Mic]` and `[Loc
 
 ## Local model benchmarks
 
-Measured 2026-09-26 on an x86 CPU (4 threads for recognition, 8 for the LLM) with the same sherpa-onnx / llama.cpp calls the app makes; the harness and data are not in the repo. An M-chip is faster (QA measured the LLM at 0.4–0.5 s/sentence on Metal against 2 s here); compare rows, not absolute times.
+Measured 2026-09-26 on an x86 CPU (4 threads for recognition, 8 for the LLM) with the same sherpa-onnx / llama.cpp calls the app makes; the harness and data are not in the repo. An M-chip is faster (see [Apple Silicon end to end](#apple-silicon-end-to-end-macbook-air-m5) below); compare rows, not absolute times.
 
 ### Speech recognition (Mandarin) — mixed error rate, lower is better
 
@@ -339,6 +339,22 @@ FireRedASR2-AED is the most accurate but 15× slower and 5× the memory — it b
 | + glossary hotwords (terms of ≥ 3 characters, score 2.0) | 14.9 % | 11.3 % | **99.3 %** (SenseVoice: 84.6 %) |
 
 Hence GTCRN and AGC are off by default (still available in Settings › Micro), and every glossary term of three or more Chinese characters becomes a hotword. Also found: under continuous babble, sherpa-onnx's VAD never reached its 8 s `max_speech_duration` cut (one 46 s segment — that much delay, and X-ASR aborts at ≥ 50 s); the pipeline now cuts an utterance itself at a quiet chunk after 8 s, at 12 s at the latest.
+
+### Apple Silicon end to end (MacBook Air M5)
+
+Measured 2026-09-26 by QA on a MacBook Air M5 (10 cores, 16 GB, macOS 27): 72 s of Mandarin lecture audio (12 sentences from real classes and finance lectures, macOS voice *Tingting*, 1.5 s pauses) streamed at real-time pace in 200 ms chunks through the app's own Local pipeline — Silero VAD → X-ASR int8 → Hy-MT2-1.8B Q6_K on Metal — with no glossary. Three runs; per-sentence medians. The split between recognition and translation comes from extra runs with an instant stand-in translator.
+
+| Measure | Result |
+|---|---|
+| End of sentence → translation on screen | **0.96 s** median (0.77–1.45 s; longer sentences take longer) |
+| … of which pause detection + recognition | 0.54 s (0.35 s pause + wait for the next 200 ms chunk + recognition) |
+| … of which translation | 0.44 s median (0.27–0.75 s) |
+| Recognition alone | 0.20 s for 10.1 s of audio |
+| Model load when pressing Start | 0.2–0.5 s; **~14 s once** after installing or updating the app (Metal compiles its shaders, then macOS caches them) |
+| Memory | 2.0 GB after loading, 2.36 GB peak |
+| CPU while streaming | ~8 % on average (the LLM runs on the GPU) |
+| Stop → models released | ~50 ms |
+| Sentences with untranslated Chinese | **0/12** |
 
 ### Cloud reference: Soniox (measured with a real key, same audio)
 

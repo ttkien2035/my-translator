@@ -32,7 +32,7 @@
 | Engine | Chạy ở đâu | Độ trễ (từ lúc nói → chữ hiện) | Chi phí | Ghi chú |
 |---|---|---|---|---|
 | ☁️ **Soniox** `stt-rt-v5` (khuyên dùng) | cloud | chữ tạm **~1,3 s** (90 % trong 2,1 s); bản dịch **~1,7 s** (90 % trong 3,0 s) — *đã đo* | **$0,12/giờ**, đã gồm dịch | 60+ ngôn ngữ; nhận **từ điển thuật ngữ** và ngữ cảnh của hồ sơ môn học; chính xác nhất trên bài giảng thật (lỗi 3,0 % so với 11,4 % của Local) |
-| 🖥️ **Local** (offline) | trên máy, thuần Rust | hiện **sau khi hết mỗi câu**: ~1,9 s trên CPU x86 (0,35 s nhận biết ngắt câu + 0,1 s nhận dạng + 1,4 s dịch) — *đã đo*; chip Apple dùng Metal sẽ nhanh hơn (chưa đo) | **miễn phí** | X-ASR Zipformer (có dấu câu; từ điển môn học thành hotword) + Hy-MT2-1.8B của Tencent (từ điển đưa vào prompt); không cần mạng hay VPN |
+| 🖥️ **Local** (offline) | trên máy, thuần Rust | hiện **sau khi hết mỗi câu**: **~1,0 s** trên MacBook Air M5 dùng Metal (0,35 s nhận biết ngắt câu + ~0,2 s nhận dạng + ~0,45 s dịch), ~1,9 s trên CPU x86 — *đã đo* | **miễn phí** | X-ASR Zipformer (có dấu câu; từ điển môn học thành hotword) + Hy-MT2-1.8B của Tencent (từ điển đưa vào prompt); không cần mạng hay VPN |
 | ⚡ **OpenAI Realtime** `gpt-realtime-translate` | cloud | chưa đo | **≈ $3,06/giờ** ($0,034/phút dịch + $0,017/phút nhận dạng `gpt-realtime-whisper`) | có giọng nói dịch; ở Trung Quốc đại lục cần VPN; không dùng được từ điển |
 | 🌏 **Qwen LiveTranslate** `qwen3-livetranslate-flash-realtime` | cloud (Alibaba, Singapore) | chưa đo (Alibaba công bố 2,3 s cho các bản LiveTranslate mới hơn) | **≈ $0,35/giờ** (12,5 token âm thanh/giây, $7,50 / 1 triệu token) + hạn mức miễn phí cho tài khoản mới — *ước tính* | vào được từ Trung Quốc không cần VPN; chỉ văn bản; không dùng được từ điển; Alibaba đã xếp model này vào loại cũ (legacy) |
 
@@ -289,7 +289,7 @@ Bạn có thể mở DevTools trong bản dev (`npm run dev`) để xem log `[So
 
 ## Kết quả đo model Local
 
-Đo ngày 26-09-2026 trên CPU x86 (4 luồng cho nhận dạng, 8 cho LLM), gọi đúng các hàm sherpa-onnx / llama.cpp như trong app; bộ đo và dữ liệu không nằm trong repo. Trên chip M nhanh hơn (QA đo LLM 0,4–0,5 s/câu trên Metal, ở đây 2 s), nên hãy so các dòng với nhau, không lấy số tuyệt đối.
+Đo ngày 26-09-2026 trên CPU x86 (4 luồng cho nhận dạng, 8 cho LLM), gọi đúng các hàm sherpa-onnx / llama.cpp như trong app; bộ đo và dữ liệu không nằm trong repo. Trên chip M nhanh hơn (xem [Đo trọn luồng trên chip Apple](#đo-trọn-luồng-trên-chip-apple-macbook-air-m5) bên dưới), nên hãy so các dòng với nhau, không lấy số tuyệt đối.
 
 ### Nhận dạng tiếng Trung — tỷ lệ lỗi, càng thấp càng tốt
 
@@ -319,6 +319,22 @@ FireRedASR2-AED chính xác nhất nhưng chậm gấp 15 lần và tốn RAM g�
 | + hotword từ từ điển (từ ≥ 3 chữ Hán, điểm 2,0) | 14,9 % | 11,3 % | **99,3 %** (SenseVoice: 84,6 %) |
 
 Vì vậy GTCRN và AGC tắt mặc định (vẫn bật được trong Cài đặt › Micro), và mọi thuật ngữ từ 3 chữ Hán trở lên trong từ điển trở thành hotword. Phát hiện thêm: khi tiếng ồn liên tục, VAD của sherpa-onnx không bao giờ ngắt ở mốc 8 s `max_speech_duration` (có đoạn 46 s — dịch trễ bấy nhiêu, và X-ASR sập từ 50 s); pipeline nay tự ngắt câu ở chỗ lặng sau 8 s, chậm nhất là 12 s.
+
+### Đo trọn luồng trên chip Apple (MacBook Air M5)
+
+QA đo ngày 26-09-2026 trên MacBook Air M5 (10 nhân, 16 GB, macOS 27): 72 s audio bài giảng tiếng Trung (12 câu lấy từ lớp học thật và bài giảng tài chính, giọng *Tingting* của macOS, nghỉ 1,5 s giữa các câu) phát theo đúng thời gian thực, mỗi lần 200 ms, qua chính luồng Local của app — Silero VAD → X-ASR int8 → Hy-MT2-1.8B Q6_K trên Metal — không dùng từ điển. Chạy 3 lần, lấy trung vị theo từng câu. Phần tách nhận dạng / dịch có được nhờ chạy thêm với một bộ dịch giả trả kết quả tức thì.
+
+| Chỉ số | Kết quả |
+|---|---|
+| Hết câu → bản dịch hiện trên màn hình | **0,96 s** trung vị (0,77–1,45 s; câu dài thì lâu hơn) |
+| … trong đó nhận biết ngắt câu + nhận dạng | 0,54 s (0,35 s chờ ngắt + chờ gói 200 ms kế tiếp + nhận dạng) |
+| … trong đó dịch | 0,44 s trung vị (0,27–0,75 s) |
+| Riêng nhận dạng | 0,20 s cho 10,1 s audio |
+| Nạp model khi bấm Bắt đầu | 0,2–0,5 s; **~14 s một lần** sau khi cài hoặc cập nhật app (Metal biên dịch shader, sau đó macOS lưu lại) |
+| Bộ nhớ | 2,0 GB sau khi nạp, đỉnh 2,36 GB |
+| CPU khi đang chạy | trung bình ~8 % (LLM chạy trên GPU) |
+| Dừng → giải phóng model | ~50 ms |
+| Câu còn sót chữ Hán | **0/12** |
 
 ### Mốc tham chiếu cloud: Soniox (đo bằng key thật, cùng audio)
 

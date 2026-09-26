@@ -337,6 +337,16 @@ FireRedASR2-AED is the most accurate but 15× slower and 5× the memory — it b
 
 Hence GTCRN and AGC are off by default (still available in Settings › Micro), and every glossary term of three or more Chinese characters becomes a hotword. Also found: under continuous babble, sherpa-onnx's VAD never reached its 8 s `max_speech_duration` cut (one 46 s segment — that much delay, and X-ASR aborts at ≥ 50 s); the pipeline now cuts an utterance itself at a quiet chunk after 8 s, at 12 s at the latest.
 
+### Cloud reference: Soniox (measured with a real key, same audio)
+
+| | Soniox, no context | Soniox + glossary context | Best local (X-ASR + hotwords) |
+|---|---|---|---|
+| Real lecture, first 5 min, MER | 3.0 % | 3.0 % | 11.4 % (SenseVoice 12.0 %) |
+| Finance-term recall, classroom sim. | 93.0 % | **97.2 %** | 99.3 % |
+| Errors on the term set | 1.8 % | 1.0 % | 1.1 % |
+
+Soniox is the primary engine for a reason; the Local engine is the offline fallback. The glossary context lifts Soniox's term recall and translation consistency at no cost in errors. Soniox's 8 000-token context limit is real: the full ~480-term glossary was rejected ("Context is too long: 9958 tokens"), which is why `glossary/index.js` budgets it (Soniox counts about 0.87× this app's estimate; a context estimated at 8 025 was accepted).
+
 ### Translation (Chinese → Vietnamese) — 25 finance-lecture sentences, greedy decoding
 
 | Model | File | Sentences with untranslated Chinese | s/sentence (CPU) | Notes |

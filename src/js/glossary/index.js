@@ -61,12 +61,14 @@ export function contextTokens(ctx) {
   return n;
 }
 
-// Of the 8 000, `general` (a domain line) and `text` (500 characters of
-// carryover ≈ 200 tokens) need little; the rest goes to terms and pairs.
-// 6 800 matches the size of the 278-term glossary that ran in real sessions
-// (278 pairs + 278 terms ≈ 6 950 by this estimate), so it is known to pass.
+// Calibrated against Soniox's own count on 2026-09-26: two contexts this
+// estimate put at 11 526 and 9 225 tokens were rejected as 9 958 and 8 061
+// ("Context is too long … the maximum is 8000"), so real ≈ 0.87 × estimate.
+// 8 000 estimated ≈ 6 960 real, plus `general` (a domain line) and `text`
+// (500 characters of carryover ≈ 170 real) ≈ 7 150 — an 8 025 estimate was
+// accepted live. The margin covers a user-added glossary with a different mix.
 export const SONIOX_CONTEXT_TOKENS = 8000;
-const GLOSSARY_TOKEN_BUDGET = 6800;
+const GLOSSARY_TOKEN_BUDGET = 8000;
 
 // Share of the glossary budget reserved for recognition terms. A term costs
 // ~5 tokens, a translation pair ~20, and a recognition error cannot be

@@ -64,10 +64,10 @@ test('the full built-in glossary is cut to fit the Soniox limit', () => {
   };
   assert.ok(contextTokens(ctx) > 8000, 'the whole glossary is over the limit, so budgeting matters');
   const { context, dropped, tokens } = budgetContext(ctx);
-  assert.ok(tokens <= 6800);
+  assert.ok(tokens <= 8000);
   assert.ok(dropped > 0);
   assert.equal(context.terms.length, ctx.terms.filter(isRecognitionTerm).length, 'every recognition term (≥ 3 chars) fits in the 35 % share');
-  assert.ok(context.translation_terms.length >= 200, `kept ${context.translation_terms.length} pairs`);
+  assert.ok(context.translation_terms.length >= 270, `kept ${context.translation_terms.length} pairs`);
   assert.ok(context.translation_terms.some(p => p.source === '加权平均资本成本'));
-  assert.ok(contextTokens(context) <= 8000);
+  assert.ok(contextTokens(context) <= 8000, 'estimate stays under the limit; Soniox counts ~13 % fewer');
 });

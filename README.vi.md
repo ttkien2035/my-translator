@@ -315,6 +315,16 @@ FireRedASR2-AED chính xác nhất nhưng chậm gấp 15 lần và tốn RAM g�
 
 Vì vậy GTCRN và AGC tắt mặc định (vẫn bật được trong Cài đặt › Micro), và mọi thuật ngữ từ 3 chữ Hán trở lên trong từ điển trở thành hotword. Phát hiện thêm: khi tiếng ồn liên tục, VAD của sherpa-onnx không bao giờ ngắt ở mốc 8 s `max_speech_duration` (có đoạn 46 s — dịch trễ bấy nhiêu, và X-ASR sập từ 50 s); pipeline nay tự ngắt câu ở chỗ lặng sau 8 s, chậm nhất là 12 s.
 
+### Mốc tham chiếu cloud: Soniox (đo bằng key thật, cùng audio)
+
+| | Soniox, không context | Soniox + từ điển | Local tốt nhất (X-ASR + hotword) |
+|---|---|---|---|
+| Bài giảng thật, 5 phút đầu, tỷ lệ lỗi | 3,0 % | 3,0 % | 11,4 % (SenseVoice 12,0 %) |
+| Nhận đúng thuật ngữ tài chính, giảng đường mô phỏng | 93,0 % | **97,2 %** | 99,3 % |
+| Lỗi trên bộ câu thuật ngữ | 1,8 % | 1,0 % | 1,1 % |
+
+Soniox là engine chính có lý do; engine Local là dự phòng offline. Từ điển đưa vào context giúp Soniox nhận đúng thuật ngữ hơn và dịch nhất quán hơn mà không tăng lỗi. Giới hạn 8 000 token của Soniox là thật: gửi cả ~480 mục bị từ chối ("Context is too long: 9958 tokens"), nên `glossary/index.js` phải cắt theo ngân sách (Soniox đếm khoảng 0,87 lần ước lượng của app; context ước lượng 8 025 được chấp nhận).
+
 ### Dịch Trung → Việt — 25 câu bài giảng tài chính, giải mã greedy
 
 | Model | File | Câu còn lẫn chữ Hán | s/câu (CPU) | Ghi chú |

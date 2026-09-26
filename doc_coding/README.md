@@ -22,4 +22,5 @@ Máy WSL chỉ `cargo check`/`clippy` được cho Linux. Mọi mã macOS-only
 - `work-plan.md` — kế hoạch việc đã chốt giữa hai bên (Commit A, Commit B) và tiêu chí pass/fail. **Kỹ sư trưởng đọc tệp này trước khi làm.**
 - `qa-reports/2026-09-25-round1-2.md` — báo cáo QA vòng 1 và 2 trên macOS.
 - `qa-reports/2026-09-26-bug-imk-log-spam.md` — bug: log `getApplicationProperty: called with invalid property` khi gõ Telex trên macOS.
+- `qa-reports/2026-09-26-install-ux-dmg.md` — QA cài đặt như người dùng phổ thông: bước 2 (tháo đĩa) không tìm thấy, DMG thiếu hướng dẫn.
 - `qa-howto-macos.md` — cách QA đã chạy các bài test trên Mac (lệnh cụ thể), để lặp lại.

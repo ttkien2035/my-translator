@@ -78,3 +78,33 @@ Phần lớn lỗi, app tự hiện hộp thoại kèm nút sửa ngay: **Tải 
 **Dữ liệu của bạn:** API key, hồ sơ, từ điển và các buổi học đều nằm trên máy bạn. Âm thanh chỉ gửi tới Soniox khi bạn dùng Soniox.
 
 Vẫn kẹt thì nhắn cho người gửi bạn file này, kèm ảnh chụp màn hình lỗi.
+
+## 6. Gỡ cài đặt
+
+Kéo app vào Thùng rác chỉ gỡ phần app. Dữ liệu vẫn ở lại trên máy: API key Soniox, cài đặt, các buổi học và gói offline (khoảng 1,5 GB). Chọn một trong hai cách:
+
+**Gỡ app nhưng giữ dữ liệu** (định cài lại sau, không muốn tải lại 1,6 GB hay dán lại key):
+
+1. Thoát app (`⌘Q`).
+2. Mở **Applications**, kéo **MeowLaoshi** vào **Thùng rác**.
+
+Cài lại thì mọi thứ còn nguyên như trước.
+
+**Gỡ sạch** (cho mượn hoặc bán máy, không muốn để lại key và buổi học):
+
+1. Muốn giữ các buổi học thì lưu ra trước: mở **📚 Thư viện**, chọn từng buổi, bấm **Chép** rồi dán vào Notion hoặc Apple Notes. Gỡ sạch là mất hết các buổi học đã lưu trong app.
+2. Thoát app (`⌘Q`), kéo **MeowLaoshi** từ **Applications** vào **Thùng rác**.
+3. Trong Finder, bấm `⌘⇧G` (menu **Đi › Đi tới thư mục**), dán từng đường dẫn dưới đây, bấm Return, rồi kéo thư mục `com.ttkien2035.meowlaoshi` trong đó vào **Thùng rác**:
+    1. `~/Library/Application Support`: cài đặt, API key, buổi học, gói offline (thư mục lớn nhất).
+    2. `~/Library/WebKit`
+    3. `~/Library/Caches`
+4. Dọn Thùng rác: chuột phải vào biểu tượng Thùng rác trên Dock → **Dọn sạch Thùng rác**.
+
+Quen dùng Terminal thì thay bước 3 bằng lệnh thứ nhất dưới đây. Lệnh thứ hai xoá luôn quyền micro mà macOS vẫn nhớ cho app (không bắt buộc):
+
+```bash
+rm -rf ~/Library/Application\ Support/com.ttkien2035.meowlaoshi ~/Library/WebKit/com.ttkien2035.meowlaoshi ~/Library/Caches/com.ttkien2035.meowlaoshi
+tccutil reset All com.ttkien2035.meowlaoshi
+```
+
+Sau khi gỡ sạch, cài lại thì app mở như lần đầu: có trình hướng dẫn và hỏi lại quyền micro.

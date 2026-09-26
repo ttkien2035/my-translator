@@ -270,6 +270,21 @@ Máy đã cài sẽ thấy bản mới trong **Cài đặt › Giới thiệu �
 
 Tất cả ở trên máy bạn. Chỉ engine cloud bạn chọn nhận âm thanh; không có máy chủ trung gian.
 
+### Gỡ cài đặt
+
+Kéo app vào Thùng rác chỉ gỡ phần app; các thư mục dữ liệu ở trên vẫn còn (khoảng 1,5 GB kể cả gói offline, gồm cả key Soniox và mọi buổi học).
+
+- **Giữ dữ liệu** (cài lại sau không phải tải lại hay dán lại key): thoát app, kéo **MeowLaoshi** từ Applications vào Thùng rác.
+- **Gỡ sạch** (cho mượn hoặc bán máy): chép ra các buổi học muốn giữ (Thư viện › Chép), rồi thoát app, bỏ app vào Thùng rác và xoá ba thư mục:
+
+  ```bash
+  rm -rf ~/Library/Application\ Support/com.ttkien2035.meowlaoshi ~/Library/WebKit/com.ttkien2035.meowlaoshi ~/Library/Caches/com.ttkien2035.meowlaoshi
+  tccutil reset All com.ttkien2035.meowlaoshi   # không bắt buộc: xoá quyền micro macOS còn nhớ
+  ```
+
+  Không dùng Terminal: Finder › Đi › Đi tới thư mục (`⌘⇧G`) → lần lượt `~/Library/Application Support`, `~/Library/WebKit`, `~/Library/Caches` → kéo `com.ttkien2035.meowlaoshi` vào Thùng rác. Từng bước cho người dùng phổ thông: [docs/huong-dan-cai-dat.md › 6](docs/huong-dan-cai-dat.md#6-gỡ-cài-đặt).
+- Windows: gỡ trong **Cài đặt › Ứng dụng › Ứng dụng đã cài**, rồi xoá `%APPDATA%\com.ttkien2035.meowlaoshi` (dữ liệu) và `%LOCALAPPDATA%\com.ttkien2035.meowlaoshi` (bộ nhớ WebView2). Chưa kiểm trên máy Windows.
+
 ---
 
 ## Xử lý sự cố

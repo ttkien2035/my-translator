@@ -287,6 +287,21 @@ Installed copies see the new version under **Cài đặt › Giới thiệu › 
 
 Everything stays on your machine. Only the cloud engine you choose receives audio; there is no intermediate server.
 
+### Uninstalling
+
+Dragging the app to the Trash removes only the app; the data folders above stay (about 1.5 GB with the offline pack, including the Soniox key and every session).
+
+- **Keep the data** (reinstalling later without re-downloading or re-entering the key): quit the app and drag **MeowLaoshi** from Applications to the Trash.
+- **Remove everything** (lending or selling the Mac): copy out any sessions you want first (Library › Copy), then quit, trash the app, and delete the three folders:
+
+  ```bash
+  rm -rf ~/Library/Application\ Support/com.ttkien2035.meowlaoshi ~/Library/WebKit/com.ttkien2035.meowlaoshi ~/Library/Caches/com.ttkien2035.meowlaoshi
+  tccutil reset All com.ttkien2035.meowlaoshi   # optional: forget the microphone permission
+  ```
+
+  Without Terminal: Finder › Go › Go to Folder (`⌘⇧G`) → each of `~/Library/Application Support`, `~/Library/WebKit`, `~/Library/Caches` → drag `com.ttkien2035.meowlaoshi` to the Trash. Step-by-step in Vietnamese: [docs/huong-dan-cai-dat.md › 6](docs/huong-dan-cai-dat.md#6-gỡ-cài-đặt).
+- Windows: uninstall from **Settings › Apps › Installed apps**, then delete `%APPDATA%\com.ttkien2035.meowlaoshi` (data) and `%LOCALAPPDATA%\com.ttkien2035.meowlaoshi` (WebView2 storage). Not yet checked on a Windows machine.
+
 ---
 
 ## Troubleshooting

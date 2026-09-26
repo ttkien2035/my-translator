@@ -68,6 +68,9 @@ tr { break-inside: avoid; }
 th { text-align: left; font-weight: 600; background: #eef4fb; color: #0b3f78; }
 th, td { padding: 3pt 6pt; border: 0.6pt solid #d7dde5; vertical-align: top; }
 tbody tr:nth-child(even) td { background: #fafbfc; }
+pre { margin: 4pt 0 8pt; padding: 6pt 9pt; background: #f1f3f6; border: 0.5pt solid #e1e4e8; border-radius: 4pt;
+      white-space: pre-wrap; word-break: break-all; }
+pre code { background: none; border: none; padding: 0; font-size: 8.2pt; line-height: 1.5; }
 blockquote { margin: 6pt 0 8pt; padding: 5pt 9pt; background: #f6f8fa; border-left: 2.5pt solid #9db7d5;
              color: #3d434b; font-size: 9pt; }
 blockquote p { margin: 0 0 2pt; }
@@ -77,7 +80,7 @@ blockquote p { margin: 0 0 2pt; }
 def main() -> None:
     text = SRC.read_text(encoding="utf-8")
     # The first horizontal rule separates the intro block from section 1 only visually.
-    body = markdown.markdown(text, extensions=["tables", "sane_lists"], output_format="html")
+    body = markdown.markdown(text, extensions=["tables", "sane_lists", "fenced_code"], output_format="html")
     # python-markdown keeps "4-space" nested ordered lists; nothing else to post-process.
     html = f"<!doctype html><html lang='vi'><head><meta charset='utf-8'><title>Hướng dẫn cài đặt và sử dụng MeowLaoshi</title>" \
            f"<style>{ensure_fonts()}\n{CSS}</style></head><body>{body}</body></html>"

@@ -334,6 +334,8 @@ Bằng chứng: Kiên cài bản release 1.0.0 như người dùng phổ thông 
 | E8 | P1 | **Mất mạng khi dùng Soniox** | Nếu gói offline đã tải: đề nghị chuyển sang Local bằng một nút (hoặc tự chuyển, báo rõ). Nếu chưa tải: nói rõ lý do và cách khắc phục. |
 | E9 | P2 | **Bỏ bước "Vẫn mở"** | Chỉ có cách ký Developer ID + notarize (Apple Developer Program, 99 USD/năm). **Kiên quyết định**; lead chỉ ghi phương án và việc cần làm trong CI nếu Kiên đồng ý. |
 | E10 | P2 | Tên file chạy | I5: `Contents/MacOS/my-translator` → `meowlaoshi` (`mainBinaryName`), nếu không ảnh hưởng updater. |
+| E11 | P1 | **Hướng dẫn "Gỡ cài đặt"** (Kiên thêm, 2026-09-26) — **CHƯA LÀM** | Kéo app vào Thùng rác **không xoá dữ liệu**. QA đo trên máy Kiên: `~/Library/Application Support/com.ttkien2035.meowlaoshi` 1,5 GB (cài đặt, **API key Soniox**, buổi học, model offline), `~/Library/WebKit/com.ttkien2035.meowlaoshi` 368 KB, `~/Library/Caches/com.ttkien2035.meowlaoshi` 68 KB; quyền Micro vẫn được macOS nhớ. Thêm mục **6. Gỡ cài đặt** vào `docs/huong-dan-cai-dat.md` (+ PDF, README Anh/Việt), viết cho người dùng phổ thông: ① **Gỡ app nhưng giữ dữ liệu** (để cài lại không phải tải lại 1,6 GB / dán lại key): chỉ kéo app vào Thùng rác. ② **Gỡ sạch** (máy cho mượn/bán, không để lại key): Finder › Đi › Đi tới thư mục (⌘⇧G) → `~/Library/Application Support` → xoá thư mục `com.ttkien2035.meowlaoshi`; làm tương tự với `~/Library/WebKit` và `~/Library/Caches`; dọn Thùng rác. Kèm khối lệnh Terminal cho người quen dùng:
+`rm -rf ~/Library/Application\ Support/com.ttkien2035.meowlaoshi ~/Library/WebKit/com.ttkien2035.meowlaoshi ~/Library/Caches/com.ttkien2035.meowlaoshi` và `tccutil reset All com.ttkien2035.meowlaoshi` (xoá quyền Micro đã cấp). Nói rõ: gỡ sạch là mất luôn các buổi học đã lưu, nên xuất Markdown trước nếu cần. Windows: ghi đường dẫn tương ứng (`%APPDATA%\com.ttkien2035.meowlaoshi`, WebView2 trong `%LOCALAPPDATA%`) sau khi kiểm. |
 
 ### Tiêu chí nghiệm thu (QA chạy trên Mac)
 
@@ -367,3 +369,5 @@ QA chạy "bài test người mới" ở tiêu chí nghiệm thu Commit E, thêm
 - Từ chối quyền micro ở bước 4, rồi bấm Bắt đầu với nguồn Mic → sau ~4 s phải hiện hộp thoại quyền micro.
 - Sửa một ô trong Cài đặt rồi thoát bằng Esc → mở lại vẫn còn.
 - `ls /Applications/MeowLaoshi.app/Contents/MacOS/` → `meowlaoshi`; cập nhật từ bản 1.0.0 cũ lên bản mới vẫn chạy.
+
+**E11 (Gỡ cài đặt) thêm sau khi Commit E xong — kỹ sư trưởng làm tiếp.** QA kiểm: làm đúng từng bước "Gỡ sạch" trong hướng dẫn, sau đó không còn thư mục `com.ttkien2035.meowlaoshi` nào trong `~/Library`, và cài lại thì app mở như lần đầu (trình hướng dẫn, hỏi lại quyền Micro).

@@ -54,6 +54,7 @@ import { audioPlayer, readAudioPlayer } from './audio-player.js';
 import { Reader } from './reader.js';
 import { updater } from './updater.js';
 import { sessionStore } from './session-store.js';
+import { StudyView } from './study-view.js';
 import { QWEN_LANGS } from './qwen-langs.js';
 // Platform class before first paint so the toolbar never jumps: macOS gets
 // room for the native traffic lights (see main.css "macOS window chrome").
@@ -62,7 +63,7 @@ if (navigator.userAgent.includes('Mac OS X')) document.documentElement.classList
 // No browser context menu (Reload / Inspect Element) on app chrome — only
 // where text lives, so Copy/Paste/Look Up keep working there.
 document.addEventListener('contextmenu', (e) => {
-    if (!e.target.closest('input, textarea, [contenteditable], #transcript-content, #session-viewer-content')) {
+    if (!e.target.closest('input, textarea, [contenteditable], #transcript-content, #session-viewer-content, #study-list')) {
         e.preventDefault();
     }
 });
@@ -110,6 +111,8 @@ class App {
         // Init transcript UI
         const transcriptContainer = document.getElementById('transcript-content');
         this.transcriptUI = new TranscriptUI(transcriptContainer);
+        // Library › ôn bài: marks + notes editable after class
+        this.studyView = new StudyView({ toast: (m, k) => this._showToast(m, k) });
 
         // Init session store — one session file lives across many Start/Pause
         // cycles; it autosaves while recording and finalizes on Stop or app close.
@@ -219,15 +222,19 @@ class App {
             this._showView('overlay');
         });
 
-        // Back from session viewer to session list
-        document.getElementById('btn-session-back-to-list').addEventListener('click', () => {
+        // Back from session viewer to session list (saves pending study edits)
+        document.getElementById('btn-session-back-to-list').addEventListener('click', async () => {
+            await this.studyView.close();
             document.getElementById('sessions-list-panel').style.display = '';
             document.getElementById('session-viewer').style.display = 'none';
+            this._showSessions(document.getElementById('input-session-search')?.value || '');
         });
 
-        // Copy session content
+        // Copy session content (Markdown with marks + notes; plain text for legacy)
         document.getElementById('btn-session-copy').addEventListener('click', async () => {
-            const content = document.getElementById('session-viewer-content')?.textContent || '';
+            const content = this._currentViewedSession?.isLegacy
+                ? (document.getElementById('session-viewer-content')?.textContent || '')
+                : this.studyView.markdown();
             if (content) {
                 await navigator.clipboard.writeText(content);
                 this._showToast('Đã chép', 'success');
@@ -254,10 +261,12 @@ class App {
             }
             const titleEl = document.getElementById('session-viewer-title');
             const oldTitle = titleEl?.textContent || '';
-            const newTitle = prompt('Rename session:', oldTitle);
+            const newTitle = prompt('Đổi tên buổi học:', oldTitle);
             if (newTitle == null || newTitle === oldTitle) return;
             try {
                 await invoke('update_session_title', { id: cur.id, title: newTitle });
+                // The open study store must not write the old title back later.
+                this.studyView.setTitle(cur.id, newTitle);
                 if (titleEl) titleEl.textContent = newTitle;
                 this._showToast('Đã đổi tên', 'success');
             } catch (err) {
@@ -2129,6 +2138,7 @@ class App {
         if (previous === 'read' && activity !== 'read') this._exitReadMode();
         if (activity === 'read') this._enterReadMode();
         if (activity === 'library') this._showSessions();
+        if (previous === 'library' && activity !== 'library') this.studyView.flush();
     }
 
     async _enterReadMode() {
@@ -3313,6 +3323,7 @@ class App {
     // that finalizes the file), then best-effort engine teardown via pause().
     // Both are idempotent, so running this more than once is harmless.
     async _flushOnExit() {
+        try { await this.studyView?.flush(); } catch (e) { console.error('[App] exit flush (study view) failed:', e); }
         try { await sessionStore.endSession(); } catch (e) { console.error('[App] exit flush (endSession) failed:', e); }
         try { await this.pause(); } catch (e) { console.error('[App] exit flush (pause) failed:', e); }
     }
@@ -3749,26 +3760,32 @@ class App {
         const listPanel = document.getElementById('sessions-list-panel');
         const viewer = document.getElementById('session-viewer');
         const title = document.getElementById('session-viewer-title');
-        const content = document.getElementById('session-viewer-content');
+        const legacyEl = document.getElementById('session-viewer-content');
+        const studyParts = ['.study-toolbar', '#study-body'].map(sel => viewer?.querySelector(sel));
+        const showStudy = (on) => {
+            studyParts.forEach(el => { if (el) el.style.display = on ? '' : 'none'; });
+            if (legacyEl) legacyEl.style.display = on ? 'none' : '';
+            if (!on) document.getElementById('study-readonly-note').style.display = 'none';
+        };
 
         if (listPanel) listPanel.style.display = 'none';
         if (viewer) viewer.style.display = '';
         if (title) title.textContent = id;
-        if (content) content.textContent = 'Loading...';
         this._currentViewedSession = { id, isLegacy };
 
         try {
             if (isLegacy) {
-                const text = await invoke('read_legacy_session', { id });
-                if (content) content.textContent = text;
-                if (title) title.textContent = id;
+                await this.studyView.close();
+                showStudy(false);
+                if (legacyEl) legacyEl.textContent = await invoke('read_legacy_session', { id });
             } else {
-                const result = await invoke('read_session', { id });
-                if (content) content.textContent = result.md;
-                if (title) title.textContent = result.json.title || id;
+                showStudy(true);
+                const store = await this.studyView.open(id, sessionStore);
+                if (title) title.textContent = store.title || id;
             }
         } catch (err) {
-            if (content) content.textContent = `Error loading session: ${err}`;
+            showStudy(false);
+            if (legacyEl) legacyEl.textContent = `Không mở được buổi học: ${err}`;
         }
     }
 
@@ -3788,6 +3805,7 @@ class App {
             return;
         }
         try {
+            await this.studyView.flush(); // export reads the file on disk
             const cmd = format === 'srt' ? 'export_session_srt' : 'export_session_txt';
             const text = await invoke(cmd, { id: cur.id });
             const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });

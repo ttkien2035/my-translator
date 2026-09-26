@@ -83,9 +83,9 @@ Commit B tách hai phần để U6 revert riêng được: **B1** = U2, U3, U1, 
 3. Màu: `color-scheme: dark`, màu chữ/viền theo `-apple-system-label` và `-apple-system-separator` (theo nghiên cứu, chạy được trong WKWebView), accent `#0A84FF`. WebKit không lộ accent thật của người dùng; muốn có phải đọc bằng Rust (để sau). Chưa làm light mode.
 4. Bỏ các dấu hiệu "trang web": `cursor: default` (không dùng bàn tay trừ link), không cho chọn chữ trên chrome (chỉ chọn được trong transcript), `:focus-visible`, bỏ `::-webkit-scrollbar` tuỳ biến để dùng thanh cuộn overlay gốc, chặn menu chuột phải trừ ô nhập, `overscroll-behavior: none`.
 5. Bo góc card 10–12 px, control 28 px theo HIG.
-6. **Đề xuất, cần Kiên duyệt:** HIG khuyên không đặt nút điều khiển ở đáy cửa sổ. Chuyển ▶ Bắt đầu / TTS / ⋯ lên nhóm cuối của toolbar, bỏ hàng nút dưới đáy.
+6. ~~Chuyển ▶ Bắt đầu / TTS / ⋯ lên toolbar~~. **Kiên quyết định giữ hàng nút dưới đáy** (2026-09-26); không làm.
 
-### Trạng thái B2 — mục 1–5 đã làm; mục 6 chờ Kiên duyệt
+### Trạng thái B2 — đã làm (mục 6 không làm theo quyết định của Kiên)
 
 - **Nền đặc:** bảng màu tối kiểu macOS, cửa sổ `#1e1e1e`, toolbar `#2a2a2c`, accent `#0a84ff`; xanh/vàng/đỏ theo màu hệ thống; `color-scheme: dark`. Ba view toàn cửa sổ bỏ bo góc 14 px + viền + bóng (di sản cửa sổ không viền; giờ macOS tự bo góc).
 - **Bỏ:** 11 dòng `backdrop-filter`; animation của nút ghi âm, con trỏ nhấp nháy, badge cập nhật; sóng "đang nghe" (giờ là cột tĩnh) cùng các `@keyframes` không còn dùng. Giữ các animation ngắn (đang kết nối, thanh tải, kiểm tra cập nhật). Có `prefers-reduced-motion`.
@@ -119,6 +119,32 @@ Thay khung xem Markdown chỉ đọc bằng màn hình ôn bài:
 - **Tiêu chí QA:** sửa ghi chú hoặc dấu → thoát app → mở lại → còn nguyên, và `.md` có mục *Đánh dấu* / *Ghi chú* cập nhật. Buổi 2 000 câu mở < 300 ms, cuộn không giật. Không sửa được buổi đang dịch.
 
 Thứ tự: **B1 → B2 → D → C**.
+
+### Trạng thái Commit D — đã làm (kỹ sư trưởng, 2026-09-26)
+
+- Module mới `src/js/study-view.js` (`StudyView`), để không nhồi thêm vào `app.js`.
+  - Mở buổi qua `SessionStore.resume(id)`. Dấu và ghi chú ghi bằng `persist()` → `save_session` (atomic, JSON + Markdown), không thêm lệnh Rust.
+  - Buổi đang mở trong Live (cùng `id` với `sessionStore`, kể cả đang tạm dừng) hiện **chỉ xem**, có banner.
+- **Giao diện:**
+  - Lọc Tất cả/⭐/❓/📝, tìm trong buổi; mỗi câu gồm giờ, bản dịch, câu gốc (`lang="zh-Hans"` → PingFang).
+  - Nút dấu hiện khi rê chuột; dấu đang có luôn hiện, kèm vạch màu bên trái.
+  - Khi đang lọc hoặc tìm, bấm vào câu → bỏ lọc và cuộn tới câu đó.
+  - Ghi chú bên phải (cửa sổ hẹp hơn 860 px thì xuống dưới), hiện trạng thái "đang lưu…/đã lưu/lỗi lưu".
+- **Tính nhất quán:**
+  - Đổi tên cập nhật store đang mở, nên lần lưu sau không ghi lại tên cũ.
+  - Xuất `.srt/.txt` flush trước khi đọc đĩa.
+  - Về danh sách, rời Thư viện và thoát app (`_flushOnExit`) đều flush.
+  - Chép = Markdown có dấu và ghi chú. Buổi định dạng cũ (`.md` đơn) vẫn hiện chữ thuần, chỉ đọc.
+- **Hiệu năng:**
+  - Dựng DOM một lần bằng `textContent` (không `innerHTML`, không có XSS từ nội dung), một listener chung cho cả danh sách.
+  - `content-visibility: auto` trên từng câu; lọc/tìm chỉ bật tắt `hidden`.
+  - Ghi debounce 600 ms (dấu) / 800 ms (ghi chú).
+- **Tự kiểm (jsdom, test tạm, không commit):**
+  - Qua hết: mở, lọc, nhảy, bật/tắt dấu, ghi chú, đổi tên, nhiều thay đổi → 1 lần ghi khi đóng, đóng lần hai không ghi, chỉ xem thì không ghi; `.md` có *Đánh dấu* / *Ghi chú*, dấu đã bỏ thì mất khỏi `.md`.
+  - 2 000 câu: mở 278 ms, lọc 18 ms (jsdom chậm hơn WebKit).
+- **QA trên Mac:** tiêu chí D ở trên; thêm: cuộn buổi 2 000 câu có mượt không; `prompt()` đổi tên có hiện trên WKWebView không (có từ trước, chưa ai kiểm).
+
+
 
 ---
 

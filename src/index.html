@@ -284,10 +284,30 @@
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
-            Copy
+            Chép
           </button>
         </div>
-        <div id="session-viewer-content" class="session-content-scroll"></div>
+        <!-- Study view (ôn bài): filters + search, sentences, notes — see study-view.js -->
+        <div class="study-toolbar">
+          <div class="study-filters" role="group" aria-label="Lọc theo dấu">
+            <button class="study-filter active" data-filter="all" type="button">Tất cả</button>
+            <button class="study-filter" data-filter="⭐" type="button" title="Quan trọng">⭐</button>
+            <button class="study-filter" data-filter="❓" type="button" title="Chưa hiểu">❓</button>
+            <button class="study-filter" data-filter="📝" type="button" title="Sẽ thi">📝</button>
+          </div>
+          <input id="study-search" type="search" class="study-search" placeholder="Tìm trong buổi này…" autocomplete="off" />
+          <span id="study-count" class="study-count"></span>
+        </div>
+        <div id="study-readonly-note" class="study-banner" style="display:none">Buổi đang dịch — chỉ xem. Dừng phiên để sửa dấu và ghi chú.</div>
+        <div id="study-body" class="study-body">
+          <div id="study-list" class="study-list"></div>
+          <div class="study-notes">
+            <div class="study-notes-head">📝 Ghi chú <span id="study-save-state" class="study-save-state"></span></div>
+            <textarea id="study-notes-text" placeholder="Ghi chú sau giờ học… (tự lưu)"></textarea>
+          </div>
+        </div>
+        <!-- Legacy .md-only sessions: plain text, read-only -->
+        <div id="session-viewer-content" class="session-content-scroll" style="display:none"></div>
       </div>
     </div>
 

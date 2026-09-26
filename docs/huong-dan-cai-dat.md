@@ -4,7 +4,7 @@
 
 My Translator nghe giảng viên nói tiếng Trung và hiện bản dịch tiếng Việt ngay trên máy Mac, kèm ghi chú theo từng câu. Cài và thiết lập mất khoảng 10 phút, chỉ làm một lần.
 
-**Cần có:** máy Mac chạy macOS 13 (Ventura) trở lên, mật khẩu đăng nhập máy, và một tài khoản Soniox nếu dịch qua mạng (khoảng 10 USD dùng được 80 giờ).
+**Cần có:** máy Mac chạy macOS 13 (Ventura) trở lên, mật khẩu đăng nhập máy, và API key Soniox do tác giả cung cấp nếu dịch qua mạng (xem mục 4.1).
 
 ---
 
@@ -37,11 +37,11 @@ App phát hành miễn phí, chưa ký bằng tài khoản Apple Developer, nên
 
 Lần đầu mở, app hỏi **Chọn cách dịch**. Nên chọn **Soniox** để dùng trên lớp và tải thêm **Local** làm dự phòng khi mất mạng. Đo trên cùng một bài giảng tài chính thật, Soniox sai khoảng 3 % số chữ, Local khoảng 11 %.
 
-| Cách dịch | Cần gì | Chi phí | Khi nào dùng |
-|---|---|---|---|
-| **Soniox** (khuyên dùng) | Internet, API key Soniox; ở Trung Quốc đại lục có thể cần VPN | ~0,12 USD/giờ | Mọi buổi học có mạng; chính xác nhất, chữ hiện gần như tức thì |
-| **Local** (offline) | Tải model 1,6 GB một lần | Miễn phí | Mất mạng, không có VPN; bản dịch hiện 1–2 giây sau mỗi câu |
-| Qwen LiveTranslate | Internet, API key DashScope | Đang miễn phí | Thử nghiệm; không dùng được từ điển môn học |
+| Cách dịch | Cần gì | Khi nào dùng |
+|---|---|---|
+| **Soniox** (khuyên dùng) | Internet, API key Soniox do tác giả cung cấp; ở Trung Quốc đại lục có thể cần VPN | Mọi buổi học có mạng; chính xác nhất, chữ hiện gần như tức thì |
+| **Local** (offline) | Tải model 1,6 GB một lần | Mất mạng, không có VPN; bản dịch hiện 1–2 giây sau mỗi câu |
+| Qwen LiveTranslate | Internet, API key DashScope của Alibaba | Thử nghiệm; không dùng được từ điển môn học |
 
 Sau này đổi cách dịch ngay trên thanh công cụ hoặc trong **Cài đặt › Model**.
 
@@ -51,13 +51,13 @@ Mở **Cài đặt** bằng nút ⚙ trên thanh công cụ (hoặc `⌘,`). Là
 
 ### 4.1. API key Soniox
 
-1. Vào [console.soniox.com](https://console.soniox.com), đăng ký tài khoản.
-2. Mục **Billing**: nạp tiền (10 USD ≈ 80 giờ nghe giảng).
-3. Mục **API Keys**: tạo key mới, chép lại.
-4. Trong app: **Cài đặt › Engine dịch** → dán key vào ô **Soniox API key**.
-5. Ngôn ngữ nguồn **Chinese**, đích **Vietnamese** (đã là mặc định).
+Bạn không cần tự tạo tài khoản Soniox.
 
-Key gắn với tiền bạn đã nạp: không chia sẻ cho người khác.
+1. Liên hệ tác giả (người gửi bạn file này) để được cấp API key Soniox.
+2. Trong app: **Cài đặt › Engine dịch** → dán key vào ô **Soniox API key**.
+3. Ngôn ngữ nguồn **Chinese**, đích **Vietnamese** (đã là mặc định).
+
+Key được cấp riêng cho bạn: không chia sẻ cho người khác.
 
 ### 4.2. Hồ sơ môn học và từ điển
 
@@ -108,7 +108,7 @@ Nên xin phép giảng viên trước khi ghi âm trong lớp.
 |---|---|
 | macOS báo “MyTranslator bị hỏng và không thể mở” | App không hỏng; đây là cảnh báo với app chưa ký. Làm lại bước 3 ở mục 2, hoặc chạy lệnh `xattr` ở cuối mục 2 |
 | Bấm Bắt đầu mà không hiện chữ | **Cài đặt hệ thống › Quyền riêng tư & Bảo mật › Micrô** → bật MyTranslator rồi mở lại app; kiểm tra nguồn đang là **🎤 Mic** |
-| Soniox báo lỗi 401 hoặc 402 | Sai key hoặc hết tiền: kiểm tra tại console.soniox.com |
+| Soniox báo lỗi 401 hoặc 402 | Key bị dán thiếu hoặc không còn dùng được: dán lại key, nếu vẫn lỗi thì liên hệ tác giả |
 | Soniox không kết nối, hoặc báo “Mạng chậm” liên tục | Bật VPN hoặc đổi Wi-Fi; không có mạng thì chuyển sang **Local** |
 | Local báo “cần tải model” | Làm mục 4.3: tải cả model trong **Micro** và trong **Model › Local** |
 | Bản dịch bỏ qua vài câu | Khi máy hoặc mạng chậm, app bỏ câu cũ để theo kịp giảng viên. Bình thường; ngồi gần hơn hoặc dùng Soniox sẽ ít gặp |

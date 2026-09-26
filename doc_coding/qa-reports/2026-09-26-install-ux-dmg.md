@@ -34,8 +34,17 @@ cài thực ra đã xong; chỉ là hướng dẫn làm người dùng tưởng 
 - Trong luồng chính không còn bước nào chỉ vào thứ không nhìn thấy trên màn hình lúc đó.
 - Cửa sổ DMG tự nói bước tiếp theo.
 
-## Bước tiếp theo của Kiên (đang test dở)
+## Kết quả bước 3 (mở lần đầu) — PASS
 
-Chuyển sang bước 3 của hướng dẫn: mở **Applications › MeowLaoshi** → macOS chặn →
-**Cài đặt hệ thống › Quyền riêng tư & Bảo mật** → **Vẫn mở**. QA sẽ ghi tiếp kết
-quả bước này vào báo cáo.
+Kiên làm theo bước 3 (Applications › MeowLaoshi → bị chặn → Quyền riêng tư &
+Bảo mật › **Vẫn mở**) và mở được app. QA kiểm trên máy:
+
+- App 1.0.0 chạy từ `/Applications/MeowLaoshi.app`.
+- Cờ quarantine đổi từ `0183` sang `01c3`: macOS đã ghi nhận người dùng cho phép. Lần mở sau không bị chặn nữa.
+- `spctl` vẫn báo `rejected`, đúng với app chưa ký Developer ID được mở bằng **Vẫn mở**.
+
+Bước 3 viết đủ rõ để người dùng phổ thông làm được. Vấn đề chỉ nằm ở bước 2 (I1) và cửa sổ DMG (I2).
+
+| # | Mức | Vấn đề | Đề xuất |
+|---|---|---|---|
+| I5 | low | File chạy bên trong app vẫn tên `my-translator` (`Contents/MacOS/my-translator`), nên log macOS và một số công cụ hiện `my-translator` thay vì MeowLaoshi. | Đổi `mainBinaryName` (Tauri 2) hoặc tên package Cargo sang `meowlaoshi`, nếu không ảnh hưởng updater. |

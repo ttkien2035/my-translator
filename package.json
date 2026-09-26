@@ -1,16 +1,16 @@
 {
   "name": "my-translator",
   "private": true,
-  "version": "0.9.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "tauri": "tauri",
     "dev": "node scripts/tauri-with-env.mjs dev",
     "dev:default": "tauri dev",
     "build": "tauri build",
-    "build:dev": "node scripts/tauri-with-env.mjs build",
     "lint": "cd src-tauri && cargo clippy",
-    "format": "cd src-tauri && cargo fmt"
+    "format": "cd src-tauri && cargo fmt",
+    "build:local": "node scripts/tauri-with-env.mjs build"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"

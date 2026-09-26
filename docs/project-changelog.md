@@ -7,9 +7,28 @@ Format: `## v<version> - <YYYY-MM-DD>` followed by content until the next `## v`
 
 ---
 
-## Unreleased — Lecture Edition (fork ttkien2035)
+## v1.0.0 - 2026-09-26
 
-Tuỳ biến cho nghe giảng tiếng Trung → ghi chú tiếng Việt (tài chính). Khi phát hành: đổi tiêu đề thành `## v<version> - <ngày>`.
+**My Translator — Lecture Edition**: bản đầu tiên của ttkien2035. Dịch bài giảng tiếng Trung sang tiếng Việt theo thời gian thực và ghi chú, cho sinh viên tài chính – kinh tế.
+*First release of the Lecture Edition: real-time Chinese → Vietnamese lecture translation with notes.*
+
+### ⬇️ Tải file nào / Which file
+
+| Máy / Machine | File |
+|---|---|
+| Mac chip Apple (M1–M4) | `MyTranslator_1.0.0_aarch64.dmg` |
+| Mac Intel | `MyTranslator_1.0.0_x64.dmg` |
+| Windows 10/11 | `MyTranslator_1.0.0_x64-setup.exe` |
+
+Các file `.app.tar.gz`, `.sig` và `latest.json` dành cho bộ tự cập nhật, không cần tải. / *The `.app.tar.gz`, `.sig` and `latest.json` files are for the auto-updater.*
+
+### 🔓 Mở lần đầu trên Mac / First launch on macOS
+
+Bản phát hành miễn phí, không ký bằng Apple Developer ID, nên macOS chặn ở lần mở đầu. / *Free build without an Apple Developer ID, so macOS blocks the first launch:*
+
+1. Kéo **MyTranslator** vào **Applications**, mở app → macOS báo không mở được → bấm **Xong**. / *Drag it to Applications, open it, dismiss the warning.*
+2. **Cài đặt hệ thống › Quyền riêng tư & Bảo mật** → kéo xuống → **Vẫn mở** → nhập mật khẩu máy. / *System Settings › Privacy & Security › **Open Anyway**.*
+3. Chỉ làm một lần. Các bản sau cập nhật trong app (Cài đặt › Giới thiệu). / *Once only; later versions update in-app.*
 
 ### Mới
 - **Hồ sơ môn học** + từ điển tài chính Trung–Anh–Việt 278 thuật ngữ, nạp vào Soniox (`terms` / `translation_terms`); đổi hồ sơ giữa giờ áp dụng ngay.

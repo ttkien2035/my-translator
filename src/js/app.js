@@ -3798,14 +3798,19 @@ class App {
     }
 
     _initAboutTab() {
+        // Real version from the bundle (tauri.conf.json), not a hard-coded label.
+        window.__TAURI__?.app?.getVersion?.()
+            .then((v) => { const el = document.getElementById('about-version'); if (el) el.textContent = `v${v}`; })
+            .catch(() => {});
+
         // GitHub links
         document.getElementById('link-github')?.addEventListener('click', (e) => {
             e.preventDefault();
-            window.__TAURI__?.opener?.openUrl('https://github.com/phuc-nt/my-translator');
+            window.__TAURI__?.opener?.openUrl('https://github.com/ttkien2035/my-translator');
         });
         document.getElementById('link-issues')?.addEventListener('click', (e) => {
             e.preventDefault();
-            window.__TAURI__?.opener?.openUrl('https://github.com/phuc-nt/my-translator/issues');
+            window.__TAURI__?.opener?.openUrl('https://github.com/ttkien2035/my-translator/issues');
         });
 
         // Check for Updates button

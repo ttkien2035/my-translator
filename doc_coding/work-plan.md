@@ -189,3 +189,28 @@ Thứ tự: **B1 → B2 → D → C**.
 
 Các bước cần người thao tác (Kiên làm, QA đọc log): mic cpal + Soniox, khử ồn + VAD,
 Apple Voice Processing, Soniox reset 3 phút, Local trong app, ghi chú/đánh dấu.
+
+---
+
+### Giao diện sáng/tối — đã làm (kỹ sư trưởng, 2026-09-26; Kiên yêu cầu, mặc định Sáng)
+
+- **Token theo theme:**
+  - `html[data-theme]` chọn theme; token sáng nằm trong `:root[data-theme="light"]`, token tối trong `:root`.
+  - Khoảng 90 màu viết cứng đã thành token, gồm 49 chỗ `rgba(255,255,255,a)` → `rgba(var(--fg-rgb), a)`.
+  - Chỉ giữ trắng ở 5 chỗ chữ/nền trắng nằm trên nền màu.
+  - Chấm màu chữ transcript là `--tx-color-1/2/3` theo theme.
+- **Tương phản (đo bằng script trên token):** 26/26 cặp chữ/nền quan trọng ở cả hai theme ≥ 4.5:1. Chữ chính 12–15:1, chữ mờ nhất 4.7:1, chữ trắng trên nút 5.0–6.8:1. Accent dùng làm chữ tách ra `--accent-text`, nền nút ra `--accent-strong`, đỏ lỗi ở theme tối là `#ff6961`.
+- **Áp theme:**
+  - `src/js/theme.js`: sáng / tối / theo hệ thống; lắng nghe khi macOS đổi giao diện.
+  - Cache trong localStorage; script inline trong `<head>` áp theme trước lần vẽ đầu, nên không nháy.
+  - `setTheme` gốc của cửa sổ (quyền `core:window:allow-set-theme`) cho vùng traffic lights, thanh cuộn và ô nhập.
+- **Giao diện chọn:** Cài đặt › Hiển thị › Giao diện, và mục ⋯ "🌙/☀️ Giao diện tối/sáng".
+- **Bỏ:**
+  - Thanh "Opacity": mặc định làm mờ cả giao diện còn 85 %, vừa làm nhạt chữ vừa tạo thêm một lớp GPU.
+  - Ô "Show original text": không còn tác dụng.
+
+  Hai trường `overlay_opacity` / `show_original` bị bỏ khỏi struct settings; file cũ vẫn nạp được, có unit test.
+- **Cỡ chữ bản dịch mặc định 16 → 18 px** (chỉ áp cho cài mới).
+- **QA trên Mac, chụp màn hình cả hai theme:**
+  - Live (đang dịch, có ⭐), Thư viện › ôn bài, Cài đặt (thẻ + tab Model/Micro), modal chọn engine, chế độ Đọc (đoạn đang đọc).
+  - Kiểm: không còn chữ trắng trên nền trắng; traffic lights và thanh cuộn đổi theo theme; *Theo hệ thống* theo đúng khi đổi trong System Settings.

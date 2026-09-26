@@ -62,14 +62,12 @@ pub struct Settings {
     pub target_language: String,
     /// Audio source: "system" | "microphone" | "both"
     pub audio_source: String,
-    /// Overlay opacity: 0.0 - 1.0
-    pub overlay_opacity: f64,
     /// Font size in px
     pub font_size: u32,
+    /// UI theme: "light" (default) | "dark" | "system".
+    pub theme: String,
     /// Max transcript lines to display
     pub max_lines: u32,
-    /// Whether to show original text alongside translation
-    pub show_original: bool,
     /// Translation mode: "soniox" | "local" | "openai"
     pub translation_mode: String,
     /// Legacy session-wide context; migrated into the "default" course
@@ -180,10 +178,9 @@ impl Default for Settings {
             source_language: "zh".to_string(),
             target_language: "vi".to_string(),
             audio_source: "microphone".to_string(),
-            overlay_opacity: 0.85,
-            font_size: 16,
+            font_size: 18,
+            theme: "light".to_string(),
             max_lines: 5,
-            show_original: true,
             translation_mode: "soniox".to_string(),
             custom_context: None,
             profiles: Vec::new(),
@@ -344,6 +341,12 @@ mod tests {
         let legacy: Settings = serde_json::from_str(r#"{"translation_mode":"local"}"#).unwrap();
         assert!(legacy.engine_picker_done);
         assert_eq!(legacy.translation_mode, "local");
+        // Theme defaults to light for new and pre-theme settings files; the
+        // removed overlay_opacity / show_original fields are simply ignored.
+        assert_eq!(Settings::default().theme, "light");
+        let old: Settings = serde_json::from_str(r#"{"overlay_opacity":0.85,"show_original":true,"font_size":16}"#).unwrap();
+        assert_eq!(old.theme, "light");
+        assert_eq!(old.font_size, 16, "a user's own font size is kept");
         // Explicit value round-trips.
         let explicit: Settings = serde_json::from_str(r#"{"engine_picker_done":false}"#).unwrap();
         assert!(!explicit.engine_picker_done);

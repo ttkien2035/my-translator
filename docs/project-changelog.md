@@ -37,10 +37,12 @@ Bản phát hành miễn phí, không ký bằng Apple Developer ID, nên macOS 
 - **Engine Local thuần Rust**: SenseVoice-small (sherpa-onnx) + Qwen2.5-3B-Instruct (llama.cpp, Metal); bỏ Python/MLX; model chỉ tải khi bấm "Tải model" (SHA-256).
 - **Micro cho lớp học**: resample chống aliasing, lọc 80 Hz, khử ồn GTCRN, AGC, VAD Silero, Apple Voice Processing (macOS).
 - **Cài đặt › Model**: chọn engine và tên model, ô LLM hỗ trợ (DeepSeek / DashScope / Zhipu / OpenAI / tuỳ chỉnh).
+- **Giao diện sáng (mặc định) / tối / theo hệ thống** — Cài đặt › Hiển thị hoặc menu ⋯; mọi màu chữ đạt tương phản WCAG AA ở cả hai giao diện; chữ bản dịch mặc định 18 px.
 - **Giao diện macOS**: cửa sổ thường (không còn luôn nằm trên), traffic lights gốc, font hệ thống, nền đặc, cửa sổ nổi ⤢ khi chiếu slide; màn hình chính tiếng Việt; modal chọn engine chỉ lần đầu.
 
 ### Sửa
 - Soniox mất chữ mỗi lần tự nối lại 3 phút; VAD cắt mất phụ âm đầu câu; câu rác từ khoảng lặng.
+- Cài đặt "Opacity" làm mờ toàn bộ giao diện còn 85 % (chữ nhạt đi, tốn thêm một lớp GPU) — đã bỏ, giao diện luôn đặc.
 - `settings.json` có thể bị xoá sạch; `.bak` có thể bị ghi đè bởi file hỏng; từ điển (`general` / `terms` / `text`) không được lưu.
 - Rò session OpenAI/Qwen; TTS vẫn đọc sau khi tạm dừng; TTS tự tắt khi lưu cài đặt; khoá API bị ghi ra log.
 - Nguồn "Cả hai" nối chuỗi thay vì trộn; luồng ScreenCaptureKit có thể không dừng khi đổi nguồn.

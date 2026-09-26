@@ -35,7 +35,7 @@ export class TranscriptUI {
         this.contentEl = null;   // .transcript-flow
         this.srcPanel = null;    // .panel-source    (dual)
         this.tgtPanel = null;    // .panel-translation (dual)
-        this.fontSize = 16;
+        this.fontSize = 18;
         this.viewMode = 'single'; // 'single' | 'dual'
 
         // { original, translation, status: 'original'|'translated', speaker,
@@ -241,7 +241,7 @@ export class TranscriptUI {
         if (!this._statusEl) {
             this._statusEl = document.createElement('div');
             this._statusEl.className = 'pipeline-status';
-            this._statusEl.style.cssText = 'text-align:center; padding:8px; color:rgba(255,255,255,0.5); font-size:13px;';
+            this._statusEl.style.cssText = 'text-align:center; padding:8px; color:var(--text-secondary); font-size:13px;';
             this.contentEl.appendChild(this._statusEl);
         }
         this._statusEl.textContent = message;

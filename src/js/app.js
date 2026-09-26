@@ -55,6 +55,7 @@ import { Reader } from './reader.js';
 import { updater } from './updater.js';
 import { sessionStore } from './session-store.js';
 import { StudyView } from './study-view.js';
+import { applyTheme, getResolvedTheme } from './theme.js';
 import { QWEN_LANGS } from './qwen-langs.js';
 // Platform class before first paint so the toolbar never jumps: macOS gets
 // room for the native traffic lights (see main.css "macOS window chrome").
@@ -470,10 +471,12 @@ class App {
             this._saveSettingsFromForm();
         });
 
-        // Slider live updates
-        document.getElementById('range-opacity').addEventListener('input', (e) => {
-            document.getElementById('opacity-value').textContent = `${e.target.value}%`;
+        // Theme: applies (and saves) immediately; the ⋯ menu toggles light ↔ dark.
+        document.getElementById('select-theme')?.addEventListener('change', (e) => this._setTheme(e.target.value));
+        document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
+            this._setTheme(getResolvedTheme() === 'dark' ? 'light' : 'dark');
         });
+        document.addEventListener('theme-changed', (e) => this._syncThemeControls(e.detail.theme));
 
         document.getElementById('range-font-size').addEventListener('input', (e) => {
             document.getElementById('font-size-value').textContent = `${e.target.value}px`;
@@ -1141,15 +1144,10 @@ class App {
         if (radio) radio.checked = true;
 
         // Display
-        const opacityPercent = Math.round((s.overlay_opacity || 0.85) * 100);
-        document.getElementById('range-opacity').value = opacityPercent;
-        document.getElementById('opacity-value').textContent = `${opacityPercent}%`;
-
-        document.getElementById('range-font-size').value = s.font_size || 16;
-        document.getElementById('font-size-value').textContent = `${s.font_size || 16}px`;
-
-
-        document.getElementById('check-show-original').checked = s.show_original !== false;
+        const themeSel = document.getElementById('select-theme');
+        if (themeSel) themeSel.value = s.theme || 'light';
+        document.getElementById('range-font-size').value = s.font_size || 18;
+        document.getElementById('font-size-value').textContent = `${s.font_size || 18}px`;
 
         // Course profiles: the context editor edits the active profile.
         this._renderProfileSelects();
@@ -1231,9 +1229,8 @@ class App {
             language_hints_strict: document.getElementById('check-strict-lang')?.checked || false,
             endpoint_delay: parseInt(document.getElementById('range-endpoint-delay')?.value || 3000),
             audio_source: document.querySelector('input[name="audio-source"]:checked')?.value || 'system',
-            overlay_opacity: parseInt(document.getElementById('range-opacity').value) / 100,
+            theme: document.getElementById('select-theme')?.value || 'light',
             font_size: parseInt(document.getElementById('range-font-size').value),
-            show_original: document.getElementById('check-show-original').checked,
             custom_context: null,
             ...this._collectModelTab(),
             ...this._collectMicTab(),
@@ -1279,9 +1276,9 @@ class App {
     // ─── Apply Settings ────────────────────────────────────
 
     _applySettings(settings) {
-        // Update overlay opacity
-        const overlayView = document.getElementById('overlay-view');
-        overlayView.style.opacity = settings.overlay_opacity || 0.85;
+        // The window is always fully opaque: the old "Opacity" setting dimmed all
+        // text (default 85 %) and forced an extra GPU compositing layer.
+        applyTheme(settings.theme || 'light');
 
         // Live status row: language pair display
         const langEl = document.getElementById('live-lang');
@@ -1304,8 +1301,7 @@ class App {
         // Update transcript UI
         if (this.transcriptUI) {
             this.transcriptUI.configure({
-                showOriginal: settings.show_original !== false,
-                fontSize: settings.font_size || 16,
+                fontSize: settings.font_size || 18,
             });
         }
 
@@ -2076,7 +2072,7 @@ class App {
         // Overflow menu (⋯) in the Live action row
         this._moreMenu = bindMenu('btn-more', 'more-menu');
         // Menu items that navigate/close: shut the menu after action
-        ['btn-copy', 'btn-clear', 'btn-compact', 'btn-shortcuts', 'btn-notes'].forEach((id) => {
+        ['btn-copy', 'btn-clear', 'btn-compact', 'btn-shortcuts', 'btn-notes', 'btn-theme-toggle'].forEach((id) => {
             document.getElementById(id)?.addEventListener('click', () => this._moreMenu.close());
         });
         // Shortcut sheet (⋯ menu + `?` key; Esc/click-outside closes)
@@ -3517,6 +3513,21 @@ class App {
         this._showToast(this.isPinned ? 'Đã ghim — luôn nằm trên các cửa sổ khác' : 'Bỏ ghim — cửa sổ bình thường', 'success');
     }
 
+    /** Apply + persist a theme preference ('light' | 'dark' | 'system'). */
+    async _setTheme(pref) {
+        await applyTheme(pref);
+        try { await settingsManager.save({ theme: pref }); } catch (e) { console.warn('[Theme] save failed:', e); }
+    }
+
+    /** Keep the Settings select and the ⋯ menu label in step with the theme. */
+    _syncThemeControls(resolved) {
+        const btn = document.getElementById('btn-theme-toggle');
+        if (btn) btn.textContent = resolved === 'dark' ? '☀️ Giao diện sáng' : '🌙 Giao diện tối';
+        const sel = document.getElementById('select-theme');
+        const pref = settingsManager.get().theme || 'light';
+        if (sel && sel.value !== pref) sel.value = pref;
+    }
+
     /**
      * Full screen hides the traffic lights, so the toolbar drops their inset
      * (html.is-fullscreen). Checked once per resize burst, not per event.
@@ -3561,7 +3572,7 @@ class App {
     }
 
     _adjustFontSize(delta) {
-        const current = this.transcriptUI.fontSize || 16;
+        const current = this.transcriptUI.fontSize || 18;
         const newSize = Math.max(12, Math.min(140, current + delta));
         this.transcriptUI.configure({ fontSize: newSize });
 

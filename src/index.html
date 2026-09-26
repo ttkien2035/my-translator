@@ -1,10 +1,12 @@
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-theme="light">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Translator</title>
+  <!-- Apply the saved theme before first paint (see js/theme.js). -->
+  <script>try{var t=localStorage.getItem('theme_resolved');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}</script>
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 
@@ -167,9 +169,10 @@
                 <button id="btn-font-up" class="float-btn" title="Chữ lớn hơn">A+</button>
               </div>
               <div class="color-controls">
-                <button class="color-dot active" data-color="#ffffff" title="Trắng" style="background:#ffffff;"></button>
-                <button class="color-dot" data-color="#ffd700" title="Vàng" style="background:#ffd700;"></button>
-                <button class="color-dot" data-color="#00e5ff" title="Xanh" style="background:#00e5ff;"></button>
+                <!-- Colours are theme tokens (main.css --tx-color-*): readable on light and dark. -->
+                <button class="color-dot active" data-color="var(--tx-color-1)" title="Mặc định" style="background:var(--tx-color-1);"></button>
+                <button class="color-dot" data-color="var(--tx-color-2)" title="Màu ấm" style="background:var(--tx-color-2);"></button>
+                <button class="color-dot" data-color="var(--tx-color-3)" title="Màu lạnh" style="background:var(--tx-color-3);"></button>
               </div>
               <button id="btn-view-mode" class="float-btn" title="Hai cột: gốc | dịch">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -179,6 +182,7 @@
               </button>
             </div>
             <div class="more-menu-sep"></div>
+            <button id="btn-theme-toggle" class="more-menu-item" type="button">🌙 Giao diện tối</button>
             <button id="btn-compact" class="more-menu-item" type="button">⤢ Compact — ẩn thanh công cụ</button>
             <button id="btn-auto-hide" class="more-menu-item" type="button">✓ Tự ẩn khi đang dịch</button>
             <button id="btn-shortcuts" class="more-menu-item" type="button">⌨️ Phím tắt</button>
@@ -371,7 +375,7 @@
           <span class="settings-card-icon">🎨</span>
           <span class="settings-card-text">
             <span class="settings-card-title">Hiển thị</span>
-            <span class="settings-card-sub" id="card-display-sub">Font, kích thước chữ</span>
+            <span class="settings-card-sub" id="card-display-sub">Giao diện sáng/tối, cỡ chữ</span>
           </span>
           <span class="settings-card-chevron">›</span>
         </button>
@@ -848,20 +852,20 @@
       <div class="settings-tab-content" id="tab-display">
         <button class="settings-back-row" data-screen="settings-home">‹ Cài đặt</button>
         <div class="settings-section">
-          <div class="slider-field">
-            <span class="field-label">Opacity</span>
-            <input type="range" id="range-opacity" min="20" max="100" value="85" />
-            <span id="opacity-value" class="range-value">85%</span>
+          <div class="field">
+            <span class="field-label">Giao diện</span>
+            <select id="select-theme">
+              <option value="light">☀️ Sáng (mặc định)</option>
+              <option value="dark">🌙 Tối</option>
+              <option value="system">🖥️ Theo hệ thống</option>
+            </select>
+            <p class="hint">Áp dụng ngay. Menu ⋯ có nút đổi nhanh sáng ↔ tối.</p>
           </div>
-          <div class="slider-field">
-            <span class="field-label">Font Size</span>
-            <input type="range" id="range-font-size" min="12" max="140" value="16" />
-            <span id="font-size-value" class="range-value">16px</span>
+          <div class="slider-field" style="margin-top: 8px;">
+            <span class="field-label">Cỡ chữ bản dịch</span>
+            <input type="range" id="range-font-size" min="12" max="140" value="18" />
+            <span id="font-size-value" class="range-value">18px</span>
           </div>
-          <label class="checkbox-option" style="margin-top: 8px;">
-            <input type="checkbox" id="check-show-original" checked />
-            <span class="checkbox-label">Show original text</span>
-          </label>
         </div>
       </div>
 

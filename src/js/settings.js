@@ -12,10 +12,10 @@ const DEFAULT_SETTINGS = {
   source_language: 'zh',
   target_language: 'vi',
   audio_source: 'microphone',
-  overlay_opacity: 0.85,
-  font_size: 16,
+  font_size: 18,
+  // 'light' (default) | 'dark' | 'system'
+  theme: 'light',
   max_lines: 5,
-  show_original: true,
   translation_mode: 'soniox',
   custom_context: null,
   // Course profiles: [{ id, name, context: { general, terms, text, translation_terms } }]

@@ -67,9 +67,10 @@ Each engine's model name can be changed in **Cài đặt › Model** (Settings �
 
 ### macOS-style interface
 
-- A normal window that doesn't cover other apps, native traffic lights and system font (SF, with PingFang for Chinese). Also: an opaque dark background, native scrollbars and cursor, and *Reduce motion* is respected.
+- **Light (default) or dark theme**, or follow the system: **Cài đặt › Hiển thị › Giao diện** (Settings › Display › Appearance), or the ⋯ menu for a quick switch. Every text colour meets WCAG AA contrast (≥ 4.5:1) in both themes.
+- A normal window that doesn't cover other apps, native traffic lights and system font (SF, with PingFang for Chinese). Also: opaque surfaces, native scrollbars and cursor, and *Reduce motion* is respected.
 - **⤢ Floating panel**: shrinks to a small always-on-top window to use next to slides. **📌 Pin** (`⌘P`) keeps the normal window on top.
-- Two-column source | translation view, a compact mode that hides the toolbar, font size up to 140 px.
+- Two-column source | translation view, a compact mode that hides the toolbar, transcript font 18 px by default (up to 140 px).
 
 ### Engineering (what differs from the original)
 

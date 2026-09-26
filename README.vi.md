@@ -62,9 +62,10 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 
 ### Giao diện kiểu macOS
 
-- Cửa sổ bình thường (không đè lên app khác), traffic lights gốc, font hệ thống (SF / PingFang cho chữ Hán), nền đặc tối, thanh cuộn và con trỏ gốc, tôn trọng *Reduce motion*.
+- **Giao diện sáng (mặc định) hoặc tối**, hoặc theo hệ thống: **Cài đặt › Hiển thị › Giao diện**, hoặc đổi nhanh trong menu ⋯. Mọi màu chữ đạt độ tương phản WCAG AA (≥ 4.5:1) ở cả hai giao diện.
+- Cửa sổ bình thường (không đè lên app khác), traffic lights gốc, font hệ thống (SF / PingFang cho chữ Hán), nền đặc, thanh cuộn và con trỏ gốc, tôn trọng *Reduce motion*.
 - **⤢ Cửa sổ nổi**: thu nhỏ thành khung luôn nằm trên để dùng cạnh slide. **📌 Ghim** (`⌘P`) giữ cửa sổ thường nằm trên.
-- Chế độ hai cột nguồn | dịch, compact tự ẩn thanh công cụ, cỡ chữ tới 140 px, màn hình chính toàn tiếng Việt.
+- Chế độ hai cột nguồn | dịch, compact tự ẩn thanh công cụ, chữ bản dịch mặc định 18 px (tới 140 px), màn hình chính toàn tiếng Việt.
 
 ### Kỹ thuật (điểm khác biệt so với bản gốc)
 

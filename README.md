@@ -40,7 +40,7 @@ Each engine's model name can be changed in **Cài đặt › Model** (Settings �
 
 ### For the classroom
 
-- **Course profiles.** Each subject has its own domain, recognition terms, background context and a **source → target glossary**. A built-in list of **278 Chinese–English–Vietnamese finance terms** loads with one click. It covers financial statements, ratios, corporate finance, investments, derivatives, banking and monetary policy, macroeconomics, econometrics, tax and governance, and common classroom phrases. Switching profile **mid-lecture** takes effect immediately.
+- **Course profiles.** Each subject has its own domain, recognition terms, background context and a **source → target glossary**. A built-in list of **~480 Chinese–English–Vietnamese terms** loads with one click: a core finance set (statements, ratios, corporate finance, investments, derivatives, banking and monetary policy, macroeconomics, econometrics, tax, governance, classroom phrases), a master's-level set (asset pricing, fixed income, financial engineering, valuation, bank regulation and PBoC tools, Chinese capital markets, empirical methods) and CUFE names (schools, campuses, graduate-study vocabulary). For Soniox the list is trimmed to its 8 000-token context limit, longest terms first; the Local engine turns every term of ≥ 3 characters into a recognition hotword. Switching profile **mid-lecture** takes effect immediately.
 - **Notes pane** under the transcript (`⌘⇧N`), saved with the session and exported to Markdown.
   - `⌘⇧C` copies the latest sentence into the notes, with its time and source text.
   - `⌘⇧1/2/3` mark the latest sentence ⭐ important / ❓ unclear / 📝 on the exam. Marks show in the transcript and are collected under *Đánh dấu* (Marks) on export.

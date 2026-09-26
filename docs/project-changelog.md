@@ -31,7 +31,7 @@ Bản phát hành miễn phí, không ký bằng Apple Developer ID, nên macOS 
 3. Chỉ làm một lần. Các bản sau cập nhật trong app (Cài đặt › Giới thiệu). / *Once only; later versions update in-app.*
 
 ### Mới
-- **Hồ sơ môn học** + từ điển tài chính Trung–Anh–Việt 278 thuật ngữ, nạp vào Soniox (`terms` / `translation_terms`); đổi hồ sơ giữa giờ áp dụng ngay.
+- **Hồ sơ môn học** + từ điển Trung–Anh–Việt ~480 thuật ngữ (tài chính cơ bản, bậc thạc sĩ, bộ CUFE), nạp vào Soniox (`terms` / `translation_terms`, cắt vừa giới hạn 8 000 token — ưu tiên thuật ngữ dài) và làm hotword cho engine Local; đổi hồ sơ giữa giờ áp dụng ngay.
 - **Ghi chú trong buổi** (`⌘⇧N`), chép câu (`⌘⇧C`), đánh dấu ⭐ ❓ 📝 (`⌘⇧1/2/3`), tự đánh dấu 📝 khi giảng viên nói 会考/考点…
 - **Thư viện ôn bài**: đọc lại từng câu, đánh dấu và viết tiếp ghi chú sau giờ học, lọc/tìm, nhảy tới câu.
 - **Engine Local thuần Rust**: X-ASR Zipformer zh-en (sherpa-onnx; có dấu câu; thuật ngữ trong từ điển môn học thành hotword) + Hy-MT2-1.8B của Tencent (model chuyên dịch, llama.cpp, Metal); bỏ Python/MLX; model chỉ tải khi bấm "Tải model" (1,6 GB, SHA-256). Cả hai model được chọn sau khi đo (README › *Kết quả đo model Local*): X-ASR ít lỗi hơn SenseVoice-small trên bài giảng thật và giảng đường mô phỏng, nhận đúng 99 % thuật ngữ tài chính nhờ hotword; Hy-MT2 không còn câu lẫn chữ Hán (Qwen2.5-3B: 15/25).

@@ -73,7 +73,7 @@ export const FINANCE_GLOSSARY = [
   { zh: '公司金融', en: 'corporate finance', vi: 'tài chính doanh nghiệp' },
   { zh: '货币时间价值', en: 'time value of money', vi: 'giá trị thời gian của tiền' },
   { zh: '现值', en: 'present value', vi: 'giá trị hiện tại' },
-  { zh: '终值', en: 'future value', vi: 'giá trị tương lai' },
+  { zh: '终值', en: 'future value / terminal value', vi: 'giá trị tương lai (FV) / giá trị cuối kỳ (terminal value)' },
   { zh: '净现值', en: 'net present value (NPV)', vi: 'giá trị hiện tại ròng (NPV)' },
   { zh: '内部收益率', en: 'internal rate of return (IRR)', vi: 'tỷ suất hoàn vốn nội bộ (IRR)' },
   { zh: '回收期', en: 'payback period', vi: 'thời gian hoàn vốn' },

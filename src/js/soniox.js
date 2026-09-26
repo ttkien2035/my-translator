@@ -30,9 +30,9 @@ const OLD_WS_DRAIN_TIMEOUT_MS = 5000;
 // 16 kHz s16le mono; skip audio once the socket holds more than 5 s unsent.
 const BYTES_PER_SECOND = 32000;
 const MAX_BUFFERED_BYTES = 5 * BYTES_PER_SECOND;
-// Context size caps (a course glossary can be large; keep the config message sane).
-const MAX_CONTEXT_TERMS = 300;
-const MAX_TRANSLATION_TERMS = 500;
+// Soniox caps a context at 8 000 tokens; glossary/index.js trims terms and
+// pairs to a budget that leaves room for `general` and `text`.
+import { budgetContext } from './glossary/index.js';
 
 // Keepalive: send every 15s to prevent timeout when no audio
 const KEEPALIVE_INTERVAL_MS = 15000;
@@ -496,23 +496,21 @@ export class SonioxClient {
             hasContent = true;
         }
 
-        // Transcription terms (domain-specific words for accuracy). Capped so a
-        // large course glossary can't blow past the request size Soniox accepts.
-        if (customContext?.terms && customContext.terms.length > 0) {
-            context.terms = customContext.terms.slice(0, MAX_CONTEXT_TERMS);
-            if (customContext.terms.length > MAX_CONTEXT_TERMS) {
-                console.warn(`[Soniox] terms truncated to ${MAX_CONTEXT_TERMS}`);
+        // Recognition terms and the translation glossary, trimmed to the
+        // token budget (longest Chinese terms first — the rare ones).
+        if (customContext?.terms?.length || customContext?.translation_terms?.length) {
+            const { context: fitted, dropped, tokens } = budgetContext(customContext);
+            if (fitted.terms.length > 0) {
+                context.terms = fitted.terms;
+                hasContent = true;
             }
-            hasContent = true;
-        }
-
-        // Translation terms (glossary)
-        if (customContext?.translation_terms && customContext.translation_terms.length > 0) {
-            context.translation_terms = customContext.translation_terms.slice(0, MAX_TRANSLATION_TERMS);
-            if (customContext.translation_terms.length > MAX_TRANSLATION_TERMS) {
-                console.warn(`[Soniox] translation_terms truncated to ${MAX_TRANSLATION_TERMS}`);
+            if (fitted.translation_terms.length > 0) {
+                context.translation_terms = fitted.translation_terms;
+                hasContent = true;
             }
-            hasContent = true;
+            if (dropped > 0) {
+                console.warn(`[Soniox] glossary trimmed to ~${tokens} tokens: ${dropped} short entries left out`);
+            }
         }
 
         // Text context: user-provided background + carryover

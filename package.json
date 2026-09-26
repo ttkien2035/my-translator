@@ -9,6 +9,7 @@
     "dev:default": "tauri dev",
     "build": "tauri build",
     "lint": "cd src-tauri && cargo clippy",
+    "test:js": "node --test 'src/js/**/*.test.mjs'",
     "format": "cd src-tauri && cargo fmt",
     "build:local": "node scripts/tauri-with-env.mjs build"
   },

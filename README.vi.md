@@ -38,7 +38,7 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 
 ### Dành cho lớp học
 
-- **Hồ sơ môn học** — mỗi môn một bộ: lĩnh vực, từ nhận dạng, ngữ cảnh nền và **từ điển thuật ngữ nguồn → đích**. Có sẵn **278 thuật ngữ tài chính Trung–Anh–Việt** (báo cáo tài chính, chỉ số, tài chính doanh nghiệp, đầu tư, phái sinh, ngân hàng – tiền tệ, vĩ mô, kinh tế lượng, thuế – quản trị, câu thường gặp trên lớp) nạp bằng một nút bấm. Đổi hồ sơ **giữa giờ** cũng áp dụng ngay.
+- **Hồ sơ môn học** — mỗi môn một bộ: lĩnh vực, từ nhận dạng, ngữ cảnh nền và **từ điển thuật ngữ nguồn → đích**. Có sẵn **~480 thuật ngữ Trung–Anh–Việt** nạp bằng một nút bấm: bộ tài chính cơ bản (báo cáo tài chính, chỉ số, tài chính doanh nghiệp, đầu tư, phái sinh, ngân hàng – tiền tệ, vĩ mô, kinh tế lượng, thuế – quản trị, câu thường gặp trên lớp), bộ bậc thạc sĩ (định giá tài sản, trái phiếu, kỹ thuật tài chính, định giá doanh nghiệp, giám sát ngân hàng và công cụ của PBoC, thị trường vốn Trung Quốc, phương pháp thực nghiệm) và bộ CUFE (trường, học viện, cơ sở, từ vựng sau đại học). Với Soniox, danh sách được cắt vừa giới hạn 8 000 token, ưu tiên thuật ngữ dài; engine Local biến mọi thuật ngữ từ 3 chữ Hán thành hotword nhận dạng. Đổi hồ sơ **giữa giờ** cũng áp dụng ngay.
 - **Khung ghi chú** ngay dưới bản dịch (`⌘⇧N`), tự lưu cùng phiên và xuất ra Markdown. `⌘⇧C` chép câu vừa dịch (kèm giờ và câu gốc). `⌘⇧1/2/3` đánh dấu câu vừa dịch ⭐ quan trọng / ❓ chưa hiểu / 📝 sẽ thi — dấu hiện ngay trên bản dịch và được gom thành mục *Đánh dấu* khi xuất.
 - **Tự đánh dấu 📝** khi giảng viên nói *会考 / 考点 / 期末考 / 必考…* ("phần này sẽ thi").
 - **Bản dịch trực tiếp cuộn lại được cả buổi** (tới ~1 500 câu trên màn hình). Cuộn lên đọc lại thì không bị kéo xuống; ở cuối thì tự theo chữ mới.

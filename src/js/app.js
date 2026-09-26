@@ -1664,23 +1664,28 @@ class App {
         this._populateContextEditor(this._activeProfileContext());
     }
 
-    /** Merge the built-in finance glossary into the active profile (dedup by source term). */
+    /**
+     * Merge the built-in glossaries (core finance, advanced finance, CUFE)
+     * into the active profile, de-duplicated by source term. Every pair
+     * goes to the glossary; only terms of ≥ 3 characters become recognition
+     * terms (shorter ones are known words and only cost Soniox tokens).
+     */
     async _importFinanceGlossary() {
         const btn = document.getElementById('btn-profile-import-finance');
         if (btn) btn.disabled = true;
         try {
-            const { FINANCE_GLOSSARY } = await import('./glossary/finance-zh-vi.js');
+            const { allGlossaryTerms, isRecognitionTerm } = await import('./glossary/index.js');
             const ctx = this._readContextEditor();
             const havePair = new Set(ctx.translation_terms.map(t => t.source));
             const haveTerm = new Set(ctx.terms);
             let added = 0;
-            for (const g of FINANCE_GLOSSARY) {
+            for (const g of allGlossaryTerms()) {
                 if (!havePair.has(g.zh)) {
                     ctx.translation_terms.push({ source: g.zh, target: g.vi });
                     havePair.add(g.zh);
                     added++;
                 }
-                if (!haveTerm.has(g.zh)) {
+                if (isRecognitionTerm(g.zh) && !haveTerm.has(g.zh)) {
                     ctx.terms.push(g.zh);
                     haveTerm.add(g.zh);
                 }

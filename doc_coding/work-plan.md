@@ -271,3 +271,9 @@ Số liệu đầy đủ: README › *Kết quả đo model Local* (10 model nh�
   - `MT_TEST_XASR_DIR=… cargo test --release --lib local:: -- --ignored --nocapture`: ms/câu trên chip M (x86: 65 ms greedy, 79 ms có hotword).
   - Dịch một buổi thật bằng Local với hồ sơ có từ điển tài chính: thuật ngữ có ra đúng không; câu có bị cắt giữa từ khi lớp ồn không (dấu hiệu của `Cutter`: câu dài đúng 8–12 s).
   - Cài đặt › Micro: sau khi cập nhật, Khử ồn và AGC phải hiện tắt.
+
+### Từ điển ~480 thuật ngữ + ngân sách Soniox — đã làm (kỹ sư trưởng, 2026-09-26; Kiên yêu cầu)
+
+- `src/js/glossary/finance-advanced-zh-vi.js` (mới): ~170 thuật ngữ bậc thạc sĩ + bộ CUFE (中央财经大学: học viện, cơ sở, từ vựng sau đại học). Tên học viện viết theo hiểu biết, trang cufe.edu.cn trả 404 lúc kiểm — Kiên đối chiếu giúp.
+- `src/js/glossary/index.js` (mới): gộp 3 bộ, khử trùng; `budgetContext()` cắt `terms`/`translation_terms` cho vừa 6 000 token (chừa 2 000 cho `general`/`text`), ưu tiên thuật ngữ dài, cặp dịch trước từ nhận dạng, không gửi trùng. Ước lượng token: 1/chữ Hán, 1/2,5 ký tự tiếng Việt. Soniox nhận `budgetContext()` thay cho cắt theo số lượng cũ (300/500). Nút "Nạp từ điển" nạp cả 3 bộ; chỉ thuật ngữ ≥ 3 chữ Hán vào `terms`.
+- Test: `npm run test:js` (node --test). QA: sau khi nạp từ điển, mở Soniox và kiểm console không có lỗi context quá lớn; bấm nạp lần hai phải báo "đã có đủ".

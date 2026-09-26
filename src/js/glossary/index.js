@@ -61,10 +61,12 @@ export function contextTokens(ctx) {
   return n;
 }
 
-// Tokens reserved for `general` + `text` (background, carryover); the rest
-// of the 8 000 goes to terms and pairs. A margin absorbs estimation error.
+// Of the 8 000, `general` (a domain line) and `text` (500 characters of
+// carryover ≈ 200 tokens) need little; the rest goes to terms and pairs.
+// 6 800 matches the size of the 278-term glossary that ran in real sessions
+// (278 pairs + 278 terms ≈ 6 950 by this estimate), so it is known to pass.
 export const SONIOX_CONTEXT_TOKENS = 8000;
-const GLOSSARY_TOKEN_BUDGET = 6000;
+const GLOSSARY_TOKEN_BUDGET = 6800;
 
 // Share of the glossary budget reserved for recognition terms. A term costs
 // ~5 tokens, a translation pair ~20, and a recognition error cannot be

@@ -120,9 +120,7 @@ No Python, Homebrew or anything else to install.
    1. Press **+** to add a profile for your subject, e.g. *Corporate Finance*.
    2. Press **📚 Nạp từ điển tài chính Trung–Việt** (load the finance glossary).
    3. Add your lecturer's own terms if needed, then **save**.
-3. **Cài đặt › Micro** (Settings › Microphone): press **Tải model** (1.2 MB) to enable noise suppression. On a MacBook, also try **Apple Voice Processing**.
-   - Keep noise suppression on; turn VAD on for lectures with long pauses.
-   - If recognition gets *worse*, turn noise suppression off (STT copes well with noise on its own).
+3. **Cài đặt › Micro** (Settings › Microphone): press **Tải model** (1.2 MB) — the VAD model the Local engine needs. Keep the defaults: 80 Hz high-pass on, noise suppression and AGC **off** (measured on real lectures, both made recognition worse in a reverberant room with student chatter); turn VAD on for lectures with long pauses.
 4. (Optional) **Cài đặt › Model › Local › Tải model** (1.6 GB, once) for offline translation without network or VPN.
 5. On the Live bar, choose the **🎤 Micro** source and your course profile, then press **▶ Bắt đầu** (Start).
 
@@ -295,8 +293,7 @@ Everything stays on your machine. Only the cloud engine you choose receives audi
 | "⏩ Mạng chậm" (slow network) toasts keep appearing | Weak Wi-Fi: switch to Qwen (no VPN needed) or Local (offline) |
 | Local says models are needed | Cài đặt › Model › Local › **Tải model**; needs ~1.6 GB free |
 | Terminal shows `getApplicationProperty: called with invalid property` / `error messaging the mach port for IMKCFRunLoopWakeUpReliable` while typing | Noise from macOS's Input Method Kit when an input method (e.g. Vietnamese Telex) is active; it appears in Electron, Qt and Java apps too and is harmless. Nothing to fix in the app. |
-| Local leaves a few Chinese characters untranslated | A limit of the 3B model; point **custom GGUF** at a 7B model if you have ≥16 GB RAM |
-| Noise suppression makes recognition worse | Turn it off, or try Apple Voice Processing instead |
+| Recognition makes many mistakes | Keep noise suppression and AGC off (the default); sit closer or use an external mic; pick the right course profile so its glossary applies |
 | The first build takes very long | llama.cpp is compiling; first time only. Needs `cmake` + `clang` |
 | macOS won't open the app / says it is "damaged" | Free build without a Developer ID — **Privacy & Security › Open Anyway**, or `xattr -dr com.apple.quarantine /Applications/MyTranslator.app` |
 

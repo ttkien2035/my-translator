@@ -112,7 +112,7 @@ Không cần cài Python, Homebrew hay bất cứ thứ gì khác.
 
 1. **Cài đặt › Engine dịch**: dán API key **Soniox** (tạo tại [console.soniox.com](https://console.soniox.com); nạp $10 dùng được ~80 giờ). Chọn ngôn ngữ nguồn **Chinese** → đích **Vietnamese** (đã là mặc định).
 2. **Hồ sơ môn học** (cùng màn hình): bấm **+** tạo hồ sơ cho môn (ví dụ *Tài chính doanh nghiệp*), bấm **📚 Nạp từ điển tài chính Trung–Việt**, thêm thuật ngữ riêng của giảng viên nếu có, **Lưu**.
-3. **Cài đặt › Micro**: bấm **Tải model** (1,2 MB) để bật khử ồn; trên MacBook thử thêm **Apple Voice Processing**. Gợi ý: bật khử ồn; bật VAD khi lớp có nhiều khoảng lặng; nếu nhận dạng *kém đi* thì tắt khử ồn (STT vốn chịu ồn tốt).
+3. **Cài đặt › Micro**: bấm **Tải model** (1,2 MB) — model VAD mà engine Local cần. Giữ mặc định: bật lọc 80 Hz, **tắt** khử ồn và AGC (đo trên bài giảng thật, cả hai làm nhận dạng kém đi trong phòng vang có tiếng sinh viên); bật VAD khi lớp có nhiều khoảng lặng.
 4. (Tuỳ chọn) **Cài đặt › Model › Local › Tải model** (1,6 GB, tải một lần) để dịch offline khi không có mạng/VPN.
 5. Trên thanh Live chọn nguồn **🎤 Mic**, chọn hồ sơ môn, bấm **▶ Bắt đầu**.
 
@@ -273,8 +273,7 @@ Tất cả ở trên máy bạn. Chỉ engine cloud bạn chọn nhận âm than
 | Toast "⏩ Mạng chậm" liên tục | Wi-Fi yếu: chuyển sang Qwen (không cần VPN) hoặc Local (offline) |
 | Local: "cần tải model" | Cài đặt › Model › Local › **Tải model**; cần ~1,6 GB trống |
 | Terminal in `getApplicationProperty: called with invalid property` / `error messaging the mach port for IMKCFRunLoopWakeUpReliable` khi gõ chữ | Nhiễu từ Input Method Kit của macOS khi đang dùng bộ gõ (ví dụ Telex tiếng Việt); Electron, Qt, Java cũng in y như vậy, vô hại. App không sửa được và không cần sửa. |
-| Local dịch sót vài chữ Hán | Giới hạn của model 3B; trỏ **GGUF tuỳ chỉnh** tới bản 7B nếu máy đủ RAM (≥16 GB) |
-| Khử ồn làm nhận dạng kém hơn | Tắt "Khử tiếng ồn nền" (hoặc thử Apple Voice Processing thay thế) |
+| Nhận dạng sai nhiều | Tắt "Khử tiếng ồn nền" và AGC (mặc định đã tắt); ngồi gần giảng viên hoặc dùng micro rời; chọn đúng hồ sơ môn để có từ điển |
 | Build lần đầu rất lâu | llama.cpp đang được biên dịch; chỉ lần đầu. Cần `cmake` + `clang` |
 | macOS không cho mở app / báo "bị hỏng" | Bản miễn phí chưa ký Developer ID — **Quyền riêng tư & Bảo mật › Vẫn mở**, hoặc `xattr -dr com.apple.quarantine /Applications/MyTranslator.app` |
 

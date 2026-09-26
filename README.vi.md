@@ -29,12 +29,14 @@
 
 ### Bốn engine dịch, chuyển đổi ngay trên thanh công cụ
 
-| Engine | Chạy ở đâu | Độ trễ | Chi phí | Ghi chú |
+| Engine | Chạy ở đâu | Độ trễ (từ lúc nói → chữ hiện) | Chi phí | Ghi chú |
 |---|---|---|---|---|
-| ☁️ **Soniox** (khuyên dùng) | cloud | ~2 s | ~$0.12/giờ | 70+ ngôn ngữ nguồn; nhận **từ điển thuật ngữ** và ngữ cảnh của hồ sơ môn học |
-| 🌏 **Qwen LiveTranslate** | cloud (Alibaba) | ~4 s | miễn phí (preview) | vào được từ Trung Quốc không cần VPN; chỉ văn bản |
-| ⚡ **OpenAI Realtime** | cloud | ~2 s | ~$4/giờ | có giọng nói dịch; cần VPN ở Trung Quốc |
-| 🖥️ **Local** (offline) | trên máy, thuần Rust | ~1–2 s sau khi hết câu | miễn phí | X-ASR Zipformer (nhận dạng có dấu câu; từ điển môn học thành hotword) + Hy-MT2-1.8B của Tencent (model chuyên dịch, Metal trên Apple Silicon; từ điển đưa vào prompt) |
+| ☁️ **Soniox** `stt-rt-v5` (khuyên dùng) | cloud | chữ tạm **~1,3 s** (90 % trong 2,1 s); bản dịch **~1,7 s** (90 % trong 3,0 s) — *đã đo* | **$0,12/giờ**, đã gồm dịch | 60+ ngôn ngữ; nhận **từ điển thuật ngữ** và ngữ cảnh của hồ sơ môn học; chính xác nhất trên bài giảng thật (lỗi 3,0 % so với 11,4 % của Local) |
+| 🖥️ **Local** (offline) | trên máy, thuần Rust | hiện **sau khi hết mỗi câu**: ~1,9 s trên CPU x86 (0,35 s nhận biết ngắt câu + 0,1 s nhận dạng + 1,4 s dịch) — *đã đo*; chip Apple dùng Metal sẽ nhanh hơn (chưa đo) | **miễn phí** | X-ASR Zipformer (có dấu câu; từ điển môn học thành hotword) + Hy-MT2-1.8B của Tencent (từ điển đưa vào prompt); không cần mạng hay VPN |
+| ⚡ **OpenAI Realtime** `gpt-realtime-translate` | cloud | chưa đo | **≈ $3,06/giờ** ($0,034/phút dịch + $0,017/phút nhận dạng `gpt-realtime-whisper`) | có giọng nói dịch; ở Trung Quốc đại lục cần VPN; không dùng được từ điển |
+| 🌏 **Qwen LiveTranslate** `qwen3-livetranslate-flash-realtime` | cloud (Alibaba, Singapore) | chưa đo (Alibaba công bố 2,3 s cho các bản LiveTranslate mới hơn) | **≈ $0,35/giờ** (12,5 token âm thanh/giây, $7,50 / 1 triệu token) + hạn mức miễn phí cho tài khoản mới — *ước tính* | vào được từ Trung Quốc không cần VPN; chỉ văn bản; không dùng được từ điển; Alibaba đã xếp model này vào loại cũ (legacy) |
+
+Độ trễ Soniox đo trên 2 phút bài giảng thật, gửi đúng tốc độ thực từ Việt Nam qua mạng thường, có nạp từ điển tài chính; số liệu là trung vị từ lúc một chữ được nói ra tới lúc chữ đó (hoặc bản dịch) về tới app. Giá là giá niêm yết của nhà cung cấp ngày 26-09-2026 ([Soniox](https://soniox.com/pricing), [OpenAI](https://developers.openai.com/api/docs/pricing), [Alibaba Model Studio](https://www.alibabacloud.com/help/en/model-studio/qwen3-8-livetranslate-flash-realtime)).
 
 Tên model của từng engine chỉnh được trong **Cài đặt › Model** (kể cả GGUF tuỳ chỉnh cho Local). Cùng chỗ đó có ô **LLM hỗ trợ** (DeepSeek / Qwen DashScope / Zhipu GLM / OpenAI / bất kỳ API chuẩn OpenAI) dành cho các tính năng dịch lại học thuật và tóm tắt sắp tới.
 

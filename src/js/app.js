@@ -2481,10 +2481,10 @@ class App {
         const hintOpenAi = document.getElementById('hint-mode-openai');
         const hintQwen = document.getElementById('hint-mode-qwen');
         const ENGINE_HINTS = {
-            soniox: 'Cloud · 70+ languages · ~$0.12/hr',
-            local: 'Offline · X-ASR + Hy-MT2 trên máy · ~1–2 s sau khi hết câu',
-            openai: 'Cloud · 13 languages · text-only captions',
-            qwen: 'Cloud · 60+ languages · text-only · free preview · pick a source language',
+            soniox: 'Cloud · 60+ ngôn ngữ · dùng từ điển môn học · chữ hiện sau ~1–2 s',
+            local: 'Offline · X-ASR + Hy-MT2 trên máy · bản dịch hiện sau khi hết mỗi câu (~1–2 s)',
+            openai: 'Cloud · có giọng nói dịch · không dùng từ điển',
+            qwen: 'Cloud · 60+ ngôn ngữ · chỉ văn bản · không dùng từ điển · chọn ngôn ngữ nguồn',
         };
         if (hintSoniox) {
             hintSoniox.textContent = ENGINE_HINTS[mode] || '';

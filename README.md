@@ -31,12 +31,14 @@ A **real-time** speech translation app for macOS and Windows, tuned for **listen
 
 ### Four translation engines, switchable from the toolbar
 
-| Engine | Runs | Latency | Cost | Notes |
+| Engine | Runs | Latency (speech → text on screen) | Cost | Notes |
 |---|---|---|---|---|
-| ☁️ **Soniox** (recommended) | cloud | ~2 s | ~$0.12/hour | 70+ source languages; uses the course profile's **glossary** and context |
-| 🌏 **Qwen LiveTranslate** | cloud (Alibaba) | ~4 s | free (preview) | reachable from mainland China without a VPN; text only |
-| ⚡ **OpenAI Realtime** | cloud | ~2 s | ~$4/hour | translated voice output; needs a VPN in China |
-| 🖥️ **Local** (offline) | on device, pure Rust | ~1–2 s after each sentence | free | X-ASR Zipformer (speech recognition with punctuation; the course glossary becomes hotwords) + Tencent Hy-MT2-1.8B (dedicated translation model, Metal on Apple Silicon; glossary in the prompt) |
+| ☁️ **Soniox** `stt-rt-v5` (recommended) | cloud | live text **~1.3 s** (90 % within 2.1 s); translation **~1.7 s** (90 % within 3.0 s) — *measured* | **$0.12/hour**, translation included | 60+ languages; uses the course profile's **glossary** and context; most accurate on real lectures (3.0 % errors vs 11.4 % for Local) |
+| 🖥️ **Local** (offline) | on device, pure Rust | appears **after each sentence**: ~1.9 s on an x86 CPU (0.35 s pause detection + 0.1 s recognition + 1.4 s translation) — *measured*; faster with Metal on Apple Silicon (not yet measured) | **free** | X-ASR Zipformer (punctuation; the course glossary becomes hotwords) + Tencent Hy-MT2-1.8B (glossary in the prompt); no network or VPN needed |
+| ⚡ **OpenAI Realtime** `gpt-realtime-translate` | cloud | not measured here | **≈ $3.06/hour** ($0.034/min translation + $0.017/min `gpt-realtime-whisper` transcription) | translated voice output; needs a VPN in mainland China; no glossary |
+| 🌏 **Qwen LiveTranslate** `qwen3-livetranslate-flash-realtime` | cloud (Alibaba, Singapore) | not measured here (Alibaba states 2.3 s for its newer LiveTranslate models) | **≈ $0.35/hour** (12.5 audio tokens/s at $7.50 per 1M) + a free quota for new accounts — *estimate* | reachable from mainland China without a VPN; text only; no glossary; Alibaba now lists this model as legacy |
+
+Soniox latency was measured on 2 minutes of a real lecture streamed at real-time pace from Vietnam over an ordinary connection, with the finance glossary loaded; the figures are medians from when a word is spoken to when it (or its translation) reaches the app. Prices are the vendors' list prices on 2026-09-26 ([Soniox](https://soniox.com/pricing), [OpenAI](https://developers.openai.com/api/docs/pricing), [Alibaba Model Studio](https://www.alibabacloud.com/help/en/model-studio/qwen3-8-livetranslate-flash-realtime)).
 
 Each engine's model name can be changed in **Cài đặt › Model** (Settings › Model), including a custom GGUF for Local. The same screen holds a **helper LLM** slot (DeepSeek / Qwen DashScope / Zhipu GLM / OpenAI / any OpenAI-compatible API) for the upcoming academic re-translation and summary features.
 

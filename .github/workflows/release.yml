@@ -7,6 +7,12 @@ name: Build & Release
 #
 # - push a tag v*          → build all platforms + draft GitHub Release
 # - Actions › Run workflow → build only (artifacts attached to the run), no release
+#
+# Windows is TEMPORARILY DISABLED: the MSVC link step fails (C runtime
+# mismatch between sherpa-onnx and llama.cpp, see src-tauri/.cargo/config.toml).
+# To re-enable: uncomment the build-windows job, its artifact download, the
+# Windows vars/entry in latest.json and the .exe/.msi release files, and add
+# build-windows back to the release job's `needs`.
 
 on:
   push:
@@ -32,12 +38,12 @@ jobs:
             target: x86_64-apple-darwin
             artifact: macos-intel-build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -63,7 +69,7 @@ jobs:
         run: npm run tauri build -- --target ${{ matrix.target }}
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -71,71 +77,72 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
 
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+  # --- build-windows: temporarily disabled (see header) ---
+  # build-windows:
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v7
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v7
+  #       with:
+  #         node-version: 24
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+  #     - name: Setup Rust
+  #       uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
+  #     - name: Rust cache
+  #       uses: Swatinem/rust-cache@v2
+  #       with:
+  #         workspaces: src-tauri
 
-      - name: Install dependencies
-        run: npm install
+  #     - name: Install dependencies
+  #       run: npm install
 
-      - name: Build Tauri app
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-        run: npm run tauri build
+  #     - name: Build Tauri app
+  #       env:
+  #         TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  #         TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+  #       run: npm run tauri build
 
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-build
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/nsis/*.exe.sig
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/msi/*.msi.sig
+  #     - name: Upload Windows artifacts
+  #       uses: actions/upload-artifact@v7
+  #       with:
+  #         name: windows-build
+  #         path: |
+  #           src-tauri/target/release/bundle/nsis/*.exe
+  #           src-tauri/target/release/bundle/nsis/*.exe.sig
+  #           src-tauri/target/release/bundle/msi/*.msi
+  #           src-tauri/target/release/bundle/msi/*.msi.sig
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-macos, build-windows]
+    needs: [build-macos] # add build-windows back when re-enabled
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: macos-build
           path: artifacts/macos
 
       - name: Download macOS Intel artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: macos-intel-build
           path: artifacts/macos-intel
 
-      - name: Download Windows artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-build
-          path: artifacts/windows
+      # - name: Download Windows artifacts
+      #   uses: actions/download-artifact@v8
+      #   with:
+      #     name: windows-build
+      #     path: artifacts/windows
 
       - name: List artifacts
         run: find artifacts -type f | head -30
@@ -159,6 +166,7 @@ jobs:
           echo "Renamed artifacts:"
           find artifacts -name "*.tar.gz*" -type f
 
+      # Windows entry ("windows-x86_64") removed while the Windows build is disabled.
       - name: Generate latest.json for updater
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
@@ -167,14 +175,14 @@ jobs:
           # Read signatures
           DARWIN_AARCH64_SIG=$(cat artifacts/macos/macos/*_aarch64.app.tar.gz.sig 2>/dev/null || echo "")
           DARWIN_X86_64_SIG=$(cat artifacts/macos-intel/macos/*_x64.app.tar.gz.sig 2>/dev/null || echo "")
-          WINDOWS_X86_64_SIG=$(cat artifacts/windows/nsis/*.exe.sig 2>/dev/null || echo "")
+          # WINDOWS_X86_64_SIG=$(cat artifacts/windows/nsis/*.exe.sig 2>/dev/null || echo "")
 
           REPO="https://github.com/ttkien2035/meowlaoshi/releases/download/v${VERSION}"
 
           # Find actual filenames
           DARWIN_AARCH64_FILE=$(ls artifacts/macos/macos/*_aarch64.app.tar.gz 2>/dev/null | head -1 | xargs basename || echo "")
           DARWIN_X86_64_FILE=$(ls artifacts/macos-intel/macos/*_x64.app.tar.gz 2>/dev/null | head -1 | xargs basename || echo "")
-          WINDOWS_X86_64_FILE=$(ls artifacts/windows/nsis/*.exe 2>/dev/null | head -1 | xargs basename || echo "")
+          # WINDOWS_X86_64_FILE=$(ls artifacts/windows/nsis/*.exe 2>/dev/null | head -1 | xargs basename || echo "")
 
           cat > artifacts/latest.json << EOF
           {
@@ -189,10 +197,6 @@ jobs:
               "darwin-x86_64": {
                 "signature": "${DARWIN_X86_64_SIG}",
                 "url": "${REPO}/${DARWIN_X86_64_FILE}"
-              },
-              "windows-x86_64": {
-                "signature": "${WINDOWS_X86_64_SIG}",
-                "url": "${REPO}/${WINDOWS_X86_64_FILE}"
               }
             }
           }
@@ -230,14 +234,14 @@ jobs:
           cat "$OUT"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           draft: true
           body_path: release-notes.md
           files: |
             artifacts/**/*.dmg
-            artifacts/**/*.exe
-            artifacts/**/*.msi
+            # artifacts/**/*.exe
+            # artifacts/**/*.msi
             artifacts/**/*.app.tar.gz
             artifacts/**/*.sig
             artifacts/latest.json

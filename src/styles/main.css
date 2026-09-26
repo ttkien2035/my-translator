@@ -2663,3 +2663,17 @@ a { cursor: pointer; }
 }
 .study-empty { padding: 24px; color: var(--text-muted); font-size: 13px; }
 #study-list { -webkit-user-select: text; user-select: text; cursor: auto; }
+
+/* The `hidden` attribute must win over author `display` rules (.seg-block,
+   .study-row …) — the UA's [hidden] rule alone loses to them. */
+[hidden] { display: none !important; }
+
+/* Live transcript (ui.js keeps both layouts; CSS shows one). */
+#overlay-view:not(.dual-view) .panel-source,
+#overlay-view:not(.dual-view) .panel-translation { display: none; }
+/* Long scrollback: only on-screen sentences are laid out and painted. */
+.transcript-flow > .seg-block:not(.provisional),
+.seg-pair {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 32px;
+}

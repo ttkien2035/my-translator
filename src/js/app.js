@@ -482,9 +482,6 @@ class App {
             document.getElementById('font-size-value').textContent = `${e.target.value}px`;
         });
 
-        document.getElementById('range-max-lines').addEventListener('input', (e) => {
-            document.getElementById('max-lines-value').textContent = e.target.value;
-        });
 
         document.getElementById('range-endpoint-delay')?.addEventListener('input', (e) => {
             document.getElementById('endpoint-delay-value').textContent = `${(e.target.value / 1000).toFixed(1)}s`;
@@ -1155,8 +1152,6 @@ class App {
         document.getElementById('range-font-size').value = s.font_size || 16;
         document.getElementById('font-size-value').textContent = `${s.font_size || 16}px`;
 
-        document.getElementById('range-max-lines').value = s.max_lines || 5;
-        document.getElementById('max-lines-value').textContent = s.max_lines || 5;
 
         document.getElementById('check-show-original').checked = s.show_original !== false;
 
@@ -1242,7 +1237,6 @@ class App {
             audio_source: document.querySelector('input[name="audio-source"]:checked')?.value || 'system',
             overlay_opacity: parseInt(document.getElementById('range-opacity').value) / 100,
             font_size: parseInt(document.getElementById('range-font-size').value),
-            max_lines: parseInt(document.getElementById('range-max-lines').value),
             show_original: document.getElementById('check-show-original').checked,
             custom_context: null,
             ...this._collectModelTab(),
@@ -1314,7 +1308,6 @@ class App {
         // Update transcript UI
         if (this.transcriptUI) {
             this.transcriptUI.configure({
-                maxLines: settings.max_lines || 5,
                 showOriginal: settings.show_original !== false,
                 fontSize: settings.font_size || 16,
             });
@@ -3381,36 +3374,6 @@ class App {
         return `${min}m ${sec}s`;
     }
 
-    async _saveTranscriptFile() {
-        const startMs = this.recordingStartTime || Date.now();
-        const durationMs = Date.now() - startMs;
-        const duration = this._formatDuration(durationMs);
-
-        // Use session metadata captured at start()
-        const sourceLang = this.sessionSourceLang || document.getElementById('select-source-lang')?.value || 'auto';
-        const targetLang = this.sessionTargetLang || document.getElementById('select-target-lang')?.value || 'vi';
-        const mode = this.sessionMode || 'one_way';
-
-        const content = this.transcriptUI.getFullSessionText({
-            model: this.translationMode === 'soniox' ? 'Soniox Cloud API' : 'Local MLX Whisper',
-            sourceLang,
-            targetLang,
-            duration,
-            mode,
-            audioSource: this.currentSource,
-        });
-
-        if (!content) return;
-
-        try {
-            const path = await invoke('save_transcript', { content });
-            const filename = path.split('/').pop();
-            this._showToast(`Đã lưu: ${filename}`, 'success');
-        } catch (err) {
-            console.error('Failed to save transcript:', err);
-            this._showToast('Lưu bản dịch thất bại', 'error');
-        }
-    }
 
     // ─── Status ────────────────────────────────────────────
 

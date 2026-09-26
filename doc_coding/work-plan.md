@@ -120,6 +120,32 @@ Thay khung xem Markdown chỉ đọc bằng màn hình ôn bài:
 
 Thứ tự: **B1 → B2 → D → C**.
 
+### Trạng thái Commit C — đã làm (kỹ sư trưởng, 2026-09-26)
+
+- **`src/js/ui.js` viết lại theo kiểu tăng dần.** Giữ nguyên API công khai và class CSS nên `app.js` hầu như không đổi.
+  - Mỗi câu có node riêng, tạo một lần. Hai bố cục (một cột và hai cột) luôn tồn tại, CSS chọn bố cục hiển thị, nên đổi chế độ xem không vẽ lại gì.
+  - Chữ đang nhận dạng nằm trong node cố định ở cuối; mọi token trong cùng một khung hình gộp thành **1** lần ghi DOM (`requestAnimationFrame`) và tối đa 1 lần đọc layout để cuộn thông minh.
+- **Cuộn lại cả buổi:** bỏ việc cắt theo `max_lines × 160` ký tự; giữ tối đa 1 500 câu trong DOM, dùng `content-visibility: auto`. Bỏ thanh trượt "Max Lines" (trường settings `max_lines` vẫn giữ để tương thích).
+- **Xoá:** `sessionLog` (bản sao không ai đọc, tăng mãi) cùng `getFullSessionText` / `getFormattedContent` / `clearSession`, và hàm chết `_saveTranscriptFile` trong `app.js`.
+- **Hai lỗi O(n) mỗi sự kiện (O(n²) cả buổi), tìm được khi đo:**
+  1. Tìm câu chờ dịch bằng `find` từ đầu mảng. Nay dùng bộ đếm + dò ngược từ cuối.
+  2. `querySelector('.listening-indicator')` trên toàn cây DOM **ở mọi token**. Nay giữ tham chiếu trực tiếp.
+
+  Đo trên jsdom: 1 600 câu kèm 1 token mỗi câu **2 476 ms → 285 ms**. Phần tăng còn lại theo độ dài là `SymbolTree.index` của jsdom (theo CPU profile); WebKit làm thao tác này O(1).
+- **Sửa lỗi CSS có từ Commit D:** rule tác giả `display` (`.study-row`, `.seg-block`) thắng rule `[hidden]` của trình duyệt, nên **bộ lọc ở màn hình ôn bài không ẩn được câu**. Đã thêm `[hidden] { display: none !important; }`. Test jsdom lần này nạp `main.css` và kiểm style thật.
+- **Sửa lỗi trong chính code C trước khi commit:** chữ đang nhận dạng đến trước câu chốt đầu tiên (thứ tự Soniox gửi) thì không hiện, vì vùng chứa chưa được tạo.
+- **Test jsdom tạm (không commit), qua hết:**
+  - 100 token/khung → 1 lần vẽ.
+  - Câu chưa dịch ẩn thật (style), dịch xong thì hiện; huy hiệu ngôn ngữ; dấu hiện ở cả hai bố cục.
+  - Đổi một cột ↔ hai cột giữ nguyên node; Qwen ép một cột.
+  - Câu gốc chờ quá 3 bị bỏ cùng node; giới hạn 1 500 câu khớp DOM, không nhân bản.
+  - `clear`/placeholder dựng lại đúng.
+- **QA trên Mac:**
+  - CPU tiến trình WebView khi Soniox nhận chữ liên tục, so với B2.
+  - Cuộn lên giữa lúc đang dịch không bị kéo xuống; ở đáy thì tự theo.
+  - Buổi dài (feed wav lặp ~2 giờ): RSS WebView tăng < 30 MB, `document.querySelectorAll('.seg-block').length` ≤ 1 501.
+  - Chuyển hai cột giữa buổi mượt.
+
 ### Trạng thái Commit D — đã làm (kỹ sư trưởng, 2026-09-26)
 
 - Module mới `src/js/study-view.js` (`StudyView`), để không nhồi thêm vào `app.js`.

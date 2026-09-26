@@ -1,40 +1,71 @@
 /**
- * Transcript UI — continuous paragraph flow display with speaker diarization
- * 
- * Design: All text flows as one continuous paragraph.
- * - Translated text: white (primary color)
- * - Original text (pending translation): cyan/accent color  
- * - Provisional text (being recognized): dimmed
- * - Speaker labels: shown when speaker changes (e.g. "Speaker 1:")
- * - Language badges: shown when detected language changes (e.g. "🇯🇵 JA")
- * - Confidence: low-confidence segments highlighted
+ * Transcript UI — live transcript with incremental DOM updates.
+ *
+ * - Translated text: primary colour; original (pending translation): dim;
+ *   provisional (being recognised): dimmed italic, or bright when the
+ *   provider streams the target language (OpenAI target / Qwen).
+ * - Speaker labels / language badges when they change; low-confidence
+ *   segments highlighted; ⭐ ❓ 📝 marks.
+ *
+ * Rendering model (cheap on long lectures):
+ * - Each segment owns its DOM nodes, created once. A translation fills in
+ *   that segment's nodes; a dropped segment removes only its nodes.
+ * - Both layouts exist side by side — `.seg-block` (single column) and a
+ *   source/target pair in `.panel-source` / `.panel-translation` (dual) —
+ *   and CSS (`#overlay-view.dual-view`) picks one, so switching view mode
+ *   re-renders nothing.
+ * - Provisional text lives in fixed nodes at the end; token updates only
+ *   change their textContent and are coalesced to one write per animation
+ *   frame, with at most one layout read per frame for smart scroll.
+ * - Scrollback covers the session up to MAX_SEGMENTS (≈ 3 h of lecture);
+ *   the complete session is always in the Library (SessionStore).
  */
+
+/** Segments kept on screen; older ones leave the DOM (not the saved session). */
+const MAX_SEGMENTS = 1500;
+/** An original without a translation after this long is dropped from view. */
+const STALE_ORIGINAL_MS = 10000;
+const MAX_PENDING_ORIGINALS = 3;
+/** "Near the bottom" slack for smart scroll, px. */
+const STICK_PX = 100;
 
 export class TranscriptUI {
     constructor(container) {
         this.container = container;
-        this.contentEl = null;
-        this.maxChars = 1200;
+        this.contentEl = null;   // .transcript-flow
+        this.srcPanel = null;    // .panel-source    (dual)
+        this.tgtPanel = null;    // .panel-translation (dual)
         this.fontSize = 16;
-        this.viewMode = 'single'; // 'single' or 'dual'
+        this.viewMode = 'single'; // 'single' | 'dual'
 
-        // Segments: each has { original, translation, status, speaker, language, confidence }
+        // { original, translation, status: 'original'|'translated', speaker,
+        //   language, confidence, createdAt, mark?, nodes }
         this.segments = [];
-        // sessionLog: parallel array — never trimmed, holds complete session history
-        this.sessionLog = [];
         this.provisionalText = '';
         this.provisionalSpeaker = null;
         this.provisionalLanguage = null;
-        // Source-side provisional (OpenAI Realtime: source ASR is separate from target).
-        // Soniox leaves this empty; its provisionalText carries the source-language ASR.
+        // Source-side provisional (OpenAI Realtime: source ASR is separate from
+        // target). Soniox leaves this empty; its provisionalText is source ASR.
         this.sourceProvisionalText = '';
-        // Provider hint — Soniox puts source-language in provisionalText; OpenAI
-        // splits source/target streams; Qwen Live Flash emits target-only.
-        // Backing field for the `provider` getter/setter below.
         this._provider = 'soniox';
-        this.currentSpeaker = null; // Track current speaker to detect changes
-        this.currentLanguage = null; // Track current language to detect changes
-        this.lastConfidence = null; // Last confidence score from Soniox
+        this.currentSpeaker = null;
+        this.currentLanguage = null;
+        this.lastConfidence = null;
+
+        // Originals awaiting a translation. Always few (≤ MAX_PENDING_ORIGINALS)
+        // and near the end, so lookups walk back from the tail instead of
+        // scanning the whole history — O(1) per event on a 3-hour session.
+        this._pending = 0;
+        // Direct refs (no querySelector over the growing transcript per event).
+        this._listeningEl = null;
+        this._statusEl = null;
+        // Last label shown, so a label only appears when speaker/language changes.
+        this._labelSpeaker = null;
+        this._labelLang = null;
+        // Frame-coalescing state.
+        this._frame = 0;
+        this._stick = null; // "was at the bottom" captured before a frame's mutations
+        this._prov = null;  // provisional nodes { block, blockText, blockLabels, src, tgt, key }
     }
 
     get provider() {
@@ -43,20 +74,12 @@ export class TranscriptUI {
 
     set provider(value) {
         this._provider = value;
-        // Qwen Live Flash has no source channel — strip the dual-view CSS class
-        // so the overlay reverts to single-column layout even if viewMode='dual'.
-        const overlay = document.getElementById('overlay-view');
-        if (overlay) {
-            const wantsDual = this.viewMode === 'dual' && value !== 'qwen';
-            overlay.classList.toggle('dual-view', wantsDual);
-        }
+        this._syncDualClass();
+        this._queue();
     }
 
-    /**
-     * Update display settings
-     */
-    configure({ maxLines, showOriginal, fontSize, fontColor, viewMode }) {
-        if (maxLines !== undefined) this.maxChars = maxLines * 160;
+    /** Update display settings. */
+    configure({ fontSize, fontColor, viewMode }) {
         if (fontSize !== undefined) {
             this.fontSize = fontSize;
             this.container.style.setProperty('--transcript-font-size', `${fontSize}px`);
@@ -65,22 +88,19 @@ export class TranscriptUI {
             this.fontColor = fontColor;
             this.container.style.setProperty('--transcript-font-color', fontColor);
         }
-        if (viewMode !== undefined) {
+        if (viewMode !== undefined && viewMode !== this.viewMode) {
             this.viewMode = viewMode;
-            const overlay = document.getElementById('overlay-view');
-            if (overlay) {
-                const wantsDual = viewMode === 'dual' && this._provider !== 'qwen';
-                overlay.classList.toggle('dual-view', wantsDual);
-            }
-            this._render();
+            this._syncDualClass();
+            // Both layouts already exist; just land at the newest text.
+            this._stick = { flow: true, src: true, tgt: true };
+            this._queue();
         }
     }
 
-    /**
-     * Add finalized original text (pending translation)
-     */
+    /** Add finalized original text (pending translation). */
     addOriginal(text, speaker, language) {
         this._removeListening();
+        this._noteScroll();
         const seg = {
             original: text,
             translation: null,
@@ -89,114 +109,101 @@ export class TranscriptUI {
             language: language || null,
             confidence: this.lastConfidence,
             createdAt: Date.now(),
+            nodes: null,
         };
+        this._mount(seg);
         this.segments.push(seg);
-        // Also push a separate copy to sessionLog (never trimmed)
-        this.sessionLog.push({
-            original: text,
-            translation: null,
-            status: 'original',
-            speaker: speaker || null,
-            language: language || null,
-            confidence: this.lastConfidence,
-            createdAt: seg.createdAt,
-        });
+        this._pending++;
         if (speaker) this.currentSpeaker = speaker;
         if (language) this.currentLanguage = language;
         this._cleanupStaleOriginals();
-        this._render();
+        this._trim();
+        this._queue();
     }
 
-    /**
-     * Apply translation to the oldest untranslated segment
-     */
+    /** Apply a translation to the oldest untranslated segment (or add a new one). */
     addTranslation(text) {
-        const seg = this.segments.find(s => s.status === 'original');
+        this._noteScroll();
+        let seg = this._oldestPending();
         if (seg) {
-            seg.translation = text;
-            seg.status = 'translated';
-            // Mirror update in sessionLog: find matching entry by createdAt
-            const logSeg = this.sessionLog.find(
-                s => s.status === 'original' && s.createdAt === seg.createdAt
-            );
-            if (logSeg) {
-                logSeg.translation = text;
-                logSeg.status = 'translated';
-            }
+            this._pending--;
         } else {
-            const newSeg = {
+            seg = {
                 original: '',
-                translation: text,
-                status: 'translated',
+                translation: null,
+                status: 'original',
                 speaker: null,
+                language: null,
+                confidence: null,
                 createdAt: Date.now(),
+                nodes: null,
             };
-            this.segments.push(newSeg);
-            this.sessionLog.push({ ...newSeg });
+            this._mount(seg);
+            this.segments.push(seg);
         }
-        this._render();
+        seg.translation = text;
+        seg.status = 'translated';
+        this._paintTranslation(seg);
+        this._trim();
+        this._queue();
     }
 
-    /** Set (or clear with null) the marker shown on the latest translated segment. */
+    /** Set (or clear with null) the marker on the latest translated segment. */
     markLast(mark) {
         for (let i = this.segments.length - 1; i >= 0; i--) {
             const seg = this.segments[i];
             if (seg.status === 'translated' && seg.translation) {
                 if (mark) seg.mark = mark; else delete seg.mark;
-                this._render();
+                this._paintMark(seg);
                 return;
             }
         }
     }
 
-    /**
-     * Update provisional (in-progress) text
-     */
+    /** Update provisional (in-progress) text. */
     setProvisional(text, speaker, language) {
         this._removeListening();
-        this.provisionalText = text;
+        // Provisional text usually arrives before the first final segment, so
+        // the containers may not exist yet.
+        if (text) this._ensureContent();
+        this._noteScroll();
+        this.provisionalText = text || '';
         this.provisionalSpeaker = speaker || null;
         this.provisionalLanguage = language || null;
-        this._render();
+        this._queue();
     }
 
-    /**
-     * Clear provisional text
-     */
     clearProvisional() {
+        if (!this.provisionalText && !this.provisionalSpeaker && !this.provisionalLanguage) return;
         this.provisionalText = '';
         this.provisionalSpeaker = null;
         this.provisionalLanguage = null;
-        this._render();
+        this._queue();
     }
 
-    /**
-     * Set source-side provisional (OpenAI Realtime only). Renders on the source
-     * panel in dual view; ignored in single view (which shows target only).
-     */
+    /** Source-side provisional (OpenAI Realtime only; shown in dual view). */
     setSourceProvisional(text) {
         this._removeListening();
+        if (text) this._ensureContent();
+        this._noteScroll();
         this.sourceProvisionalText = text || '';
-        this._render();
+        this._queue();
     }
 
     clearSourceProvisional() {
+        if (!this.sourceProvisionalText) return;
         this.sourceProvisionalText = '';
-        this._render();
+        this._queue();
     }
 
-    /**
-     * Check if there is any content to display
-     */
+    /** Is there anything on screen? */
     hasContent() {
-        return this.segments.length > 0 || this.provisionalText ||
-            !!this.container.querySelector('.listening-indicator');
+        return this.segments.length > 0 || !!this.provisionalText || !!this._listeningEl;
     }
 
-    /**
-     * Show placeholder state
-     */
+    /** Placeholder state (no session content). */
     showPlaceholder() {
+        this._resetState();
         this.container.innerHTML = `
       <div class="transcript-placeholder">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
@@ -209,29 +216,13 @@ export class TranscriptUI {
         <p class="shortcut-hint">⌘ Enter</p>
       </div>
     `;
-        this.segments = [];
-        this.sessionLog = [];
-        this.provisionalText = '';
-        this.provisionalSpeaker = null;
-        this.provisionalLanguage = null;
-        this.currentSpeaker = null;
-        this.currentLanguage = null;
-        this.lastConfidence = null;
-        this.contentEl = null;
     }
 
-    /**
-     * Show listening state
-     */
+    /** "Listening…" indicator until the first text arrives. */
     showListening() {
-        // Remove existing indicators first (prevent duplicates)
-        this.container.querySelectorAll('.listening-indicator').forEach(el => el.remove());
-
-        const placeholder = this.container.querySelector('.transcript-placeholder');
-        if (placeholder) placeholder.remove();
-
+        this._removeListening();
+        this.container.querySelector('.transcript-placeholder')?.remove();
         this._ensureContent();
-
         const indicator = document.createElement('div');
         indicator.className = 'listening-indicator';
         indicator.innerHTML = `
@@ -241,38 +232,29 @@ export class TranscriptUI {
             <p>Đang nghe…</p>
         `;
         this.contentEl.appendChild(indicator);
+        this._listeningEl = indicator;
     }
 
-    /**
-     * Show status message in transcript area (e.g. loading model)
-     */
+    /** Status message in the transcript area (e.g. loading a model). */
     showStatusMessage(message) {
         this._ensureContent();
-        let statusEl = this.contentEl.querySelector('.pipeline-status');
-        if (!statusEl) {
-            statusEl = document.createElement('div');
-            statusEl.className = 'pipeline-status';
-            statusEl.style.cssText = 'text-align:center; padding:8px; color:rgba(255,255,255,0.5); font-size:13px;';
-            this.contentEl.appendChild(statusEl);
+        if (!this._statusEl) {
+            this._statusEl = document.createElement('div');
+            this._statusEl.className = 'pipeline-status';
+            this._statusEl.style.cssText = 'text-align:center; padding:8px; color:rgba(255,255,255,0.5); font-size:13px;';
+            this.contentEl.appendChild(this._statusEl);
         }
-        statusEl.textContent = message;
+        this._statusEl.textContent = message;
     }
 
-    /**
-     * Remove status message
-     */
     removeStatusMessage() {
-        if (this.contentEl) {
-            const statusEl = this.contentEl.querySelector('.pipeline-status');
-            if (statusEl) statusEl.remove();
-        }
+        this._statusEl?.remove();
+        this._statusEl = null;
     }
 
-    /**
-     * Get transcript as plain text for copying
-     */
+    /** Transcript as plain text for copying (everything still on screen). */
     getPlainText() {
-        let lines = [];
+        const lines = [];
         for (const seg of this.segments) {
             if (seg.original) lines.push(seg.original);
             if (seg.translation) lines.push(seg.translation);
@@ -282,339 +264,283 @@ export class TranscriptUI {
         return lines.join('\n').trim();
     }
 
-    /**
-     * Get formatted content for saving to file (markdown with metadata)
-     */
-    getFormattedContent(metadata = {}) {
-        if (this.segments.length === 0) return null;
-
-        const lines = [];
-
-        // Metadata header
-        lines.push('---');
-        lines.push(`date: ${new Date().toISOString()}`);
-        if (metadata.model) lines.push(`model: ${metadata.model}`);
-        if (metadata.sourceLang) lines.push(`source_language: ${metadata.sourceLang}`);
-        if (metadata.targetLang) lines.push(`target_language: ${metadata.targetLang}`);
-        if (metadata.duration) lines.push(`recording_duration: ${metadata.duration}`);
-        if (metadata.audioSource) lines.push(`audio_source: ${metadata.audioSource}`);
-        lines.push(`segments: ${this.segments.length}`);
-        lines.push('---');
-        lines.push('');
-
-        // Transcript entries
-        for (const seg of this.segments) {
-            if (seg.speaker) lines.push(`**Speaker ${seg.speaker}:**`);
-            if (seg.original) lines.push(`> ${seg.original}`);
-            if (seg.translation) lines.push(seg.translation);
-            lines.push('');
-        }
-
-        return lines.join('\n').trim();
-    }
-
-    /**
-     * Check if there are segments to save
-     */
-    hasSegments() {
-        return this.segments.length > 0;
-    }
-
-    /**
-     * Check if sessionLog has content (full session, not display buffer)
-     */
-    hasSessionContent() {
-        return this.sessionLog.length > 0;
-    }
-
-    /**
-     * Get full session text from sessionLog (never trimmed).
-     * Returns formatted markdown with all segments.
-     */
-    getFullSessionText(metadata = {}) {
-        if (this.sessionLog.length === 0) return null;
-
-        const lines = [];
-
-        // YAML frontmatter
-        lines.push('---');
-        const now = new Date();
-        lines.push(`date: ${now.toISOString().slice(0, 10)}`);
-        lines.push(`time: ${now.toTimeString().slice(0, 8)}`);
-        if (metadata.duration) lines.push(`duration: ${metadata.duration}`);
-        if (metadata.sourceLang) lines.push(`source_lang: ${metadata.sourceLang}`);
-        if (metadata.targetLang) lines.push(`target_lang: ${metadata.targetLang}`);
-        if (metadata.mode) lines.push(`mode: ${metadata.mode}`);
-        if (metadata.audioSource) lines.push(`audio_source: ${metadata.audioSource}`);
-        if (metadata.model) lines.push(`model: ${metadata.model}`);
-        lines.push(`segments: ${this.sessionLog.length}`);
-        lines.push('---');
-        lines.push('');
-
-        // Transcript entries
-        for (const seg of this.sessionLog) {
-            if (seg.speaker) lines.push(`**Speaker ${seg.speaker}:**`);
-            if (seg.original) lines.push(`> ${seg.original}`);
-            if (seg.translation) lines.push(seg.translation);
-            lines.push('');
-        }
-
-        return lines.join('\n').trim();
-    }
-
-    /**
-     * Clear session log (call after saving)
-     */
-    clearSession() {
-        this.sessionLog = [];
-    }
-
-    /**
-     * Clear display buffer only (segments array).
-     * sessionLog is NOT cleared — use clearSession() explicitly.
-     */
+    /** Clear the display (the saved session is untouched). */
     clear() {
+        this._resetState();
         this.container.innerHTML = '';
-        this.segments = [];
-        this.provisionalText = '';
-        this.provisionalSpeaker = null;
-        this.provisionalLanguage = null;
-        this.currentSpeaker = null;
-        this.currentLanguage = null;
-        this.lastConfidence = null;
-        this.contentEl = null;
     }
 
-    /**
-     * Update confidence score
-     */
     setConfidence(confidence) {
         this.lastConfidence = confidence;
     }
 
-    // ─── Internal ──────────────────────────────────────────
+    // ─── DOM construction ─────────────────────────────────
 
     _ensureContent() {
-        if (!this.contentEl) {
-            this.container.innerHTML = '';
-            this.contentEl = document.createElement('div');
-            this.contentEl.className = 'transcript-flow';
-            this.container.appendChild(this.contentEl);
+        if (this.contentEl) return;
+        this.container.innerHTML = '';
+        this.contentEl = el('div', 'transcript-flow');
+        this.srcPanel = el('div', 'panel-source');
+        this.tgtPanel = el('div', 'panel-translation');
+        this.contentEl.append(this.srcPanel, this.tgtPanel);
+
+        // Provisional nodes: always the last child of their parent.
+        const block = el('div', 'seg-block provisional');
+        const blockLabels = el('span', 'seg-labels');
+        const blockText = el('div', 'seg-provisional');
+        block.append(blockLabels, blockText);
+        block.hidden = true;
+        const src = el('div', 'seg-text pending');
+        const tgt = el('div', 'seg-text pending');
+        src.hidden = true;
+        tgt.hidden = true;
+        this.contentEl.appendChild(block);
+        this.srcPanel.appendChild(src);
+        this.tgtPanel.appendChild(tgt);
+        this._prov = { block, blockText, blockLabels, src, tgt, key: null };
+        this.container.appendChild(this.contentEl);
+        this._syncDualClass();
+    }
+
+    /** Create a segment's nodes (single block + dual pair), before the provisional ones. */
+    _mount(seg) {
+        this._ensureContent();
+        const speakerChanged = !!seg.speaker && seg.speaker !== this._labelSpeaker;
+        const langChanged = !!seg.language && seg.language !== this._labelLang;
+        if (speakerChanged) this._labelSpeaker = seg.speaker;
+        if (langChanged) this._labelLang = seg.language;
+
+        // Single column: hidden until translated (single view shows translations only).
+        const block = el('div', 'seg-block');
+        if (speakerChanged) block.append(el('span', 'speaker-label', `Speaker ${seg.speaker}:`), ' ');
+        if (langChanged) block.append(el('span', 'lang-badge', this._langEmoji(seg.language)), ' ');
+        const blockText = el('div', 'seg-translated');
+        block.appendChild(blockText);
+        block.hidden = true;
+
+        // Dual: source now, target "..." until the translation arrives.
+        const srcWrap = el('div', 'seg-pair');
+        if (speakerChanged) srcWrap.appendChild(el('div', 'speaker-label', `Speaker ${seg.speaker}:`));
+        const srcText = el('div', 'seg-text', seg.original || '');
+        if (langChanged) srcText.prepend(el('span', 'lang-badge', this._langEmoji(seg.language)), ' ');
+        srcWrap.appendChild(srcText);
+        srcWrap.hidden = !seg.original;
+        const tgtWrap = el('div', 'seg-pair');
+        if (speakerChanged) tgtWrap.appendChild(el('div', 'speaker-label', ' '));
+        const tgtText = el('div', 'seg-text pending', '...');
+        tgtWrap.appendChild(tgtText);
+        tgtWrap.hidden = !seg.original;
+
+        this.contentEl.insertBefore(block, this._prov.block);
+        this.srcPanel.insertBefore(srcWrap, this._prov.src);
+        this.tgtPanel.insertBefore(tgtWrap, this._prov.tgt);
+        seg.nodes = { block, blockText, srcWrap, tgtWrap, tgtText, markEls: [] };
+    }
+
+    _paintTranslation(seg) {
+        const n = seg.nodes;
+        if (!n) return;
+        const low = seg.confidence !== null && seg.confidence !== undefined && seg.confidence < 0.7;
+        n.blockText.textContent = seg.translation;
+        n.blockText.classList.toggle('low-confidence', low);
+        n.block.hidden = false;
+        n.tgtText.textContent = seg.translation;
+        n.tgtText.className = low ? 'seg-text low-confidence' : 'seg-text';
+        n.tgtWrap.hidden = false;
+        n.srcWrap.hidden = false;
+        n.markEls = [];
+        if (seg.mark) this._paintMark(seg);
+    }
+
+    _paintMark(seg) {
+        const n = seg.nodes;
+        if (!n) return;
+        n.markEls.forEach(m => m.remove());
+        n.markEls = [];
+        if (!seg.mark) return;
+        for (const target of [n.blockText, n.tgtText]) {
+            const m = el('span', 'seg-mark', seg.mark);
+            target.prepend(m);
+            n.markEls.push(m);
         }
+    }
+
+    _unmount(seg) {
+        const n = seg.nodes;
+        if (!n) return;
+        n.block.remove();
+        n.srcWrap.remove();
+        n.tgtWrap.remove();
+        seg.nodes = null;
+    }
+
+    _syncDualClass() {
+        const overlay = document.getElementById('overlay-view');
+        if (overlay) overlay.classList.toggle('dual-view', this._isDual());
+    }
+
+    /** Qwen Live Flash is translation-only (no source channel): always single. */
+    _isDual() {
+        return this.viewMode === 'dual' && this._provider !== 'qwen';
+    }
+
+    // ─── Frame coalescing ─────────────────────────────────
+
+    /** Capture "was at the bottom" once per frame, before this frame's mutations. */
+    _noteScroll() {
+        if (this._stick) return;
+        const at = (e) => !e || (e.scrollHeight - e.scrollTop - e.clientHeight) < STICK_PX;
+        this._stick = { flow: at(this._flowScroller()), src: at(this.srcPanel), tgt: at(this.tgtPanel) };
+    }
+
+    _queue() {
+        if (this._frame) return;
+        const raf = typeof requestAnimationFrame === 'function'
+            ? requestAnimationFrame
+            : (cb) => setTimeout(cb, 16);
+        this._frame = raf(() => {
+            this._frame = 0;
+            this._flush();
+        });
+    }
+
+    _flush() {
+        if (!this.contentEl) return;
+        this._paintProvisional();
+        const stick = this._stick;
+        this._stick = null;
+        if (!stick) return;
+        const flow = this._flowScroller();
+        if (stick.flow && flow) flow.scrollTop = flow.scrollHeight;
+        if (this._isDual()) {
+            if (stick.src && this.srcPanel) this.srcPanel.scrollTop = this.srcPanel.scrollHeight;
+            if (stick.tgt && this.tgtPanel) this.tgtPanel.scrollTop = this.tgtPanel.scrollHeight;
+        }
+    }
+
+    /** Write the provisional state into its fixed nodes (text only, one pass). */
+    _paintProvisional() {
+        const p = this._prov;
+        if (!p) return;
+        const text = this.provisionalText;
+        const srcProv = this.sourceProvisionalText;
+
+        // Single column. OpenAI's provisionalText is the target stream when a
+        // source stream exists; Qwen is target-only; Soniox's is source ASR.
+        const targetStream = !!srcProv || this._provider === 'qwen';
+        p.block.hidden = !text;
+        if (text) {
+            const cls = targetStream ? 'seg-translated' : 'seg-provisional';
+            if (p.blockText.className !== cls) p.blockText.className = cls;
+            if (p.blockText.textContent !== text) p.blockText.textContent = text;
+            // Labels only when they differ from the last committed ones.
+            const sp = this.provisionalSpeaker && this.provisionalSpeaker !== this._labelSpeaker ? this.provisionalSpeaker : null;
+            const lg = this.provisionalLanguage && this.provisionalLanguage !== this._labelLang ? this.provisionalLanguage : null;
+            const key = `${sp || ''}|${lg || ''}`;
+            if (key !== p.key) {
+                p.key = key;
+                p.blockLabels.textContent = '';
+                if (sp) p.blockLabels.append(el('span', 'speaker-label', `Speaker ${sp}:`), ' ');
+                if (lg) p.blockLabels.append(el('span', 'lang-badge', this._langEmoji(lg)), ' ');
+            }
+        }
+
+        // Dual. OpenAI: source = sourceProvisionalText, target = provisionalText.
+        // Soniox: source = provisionalText, target "...".
+        const usingOpenAi = this._provider === 'openai';
+        const srcText = usingOpenAi ? srcProv : text;
+        const tgtText = usingOpenAi ? text : '';
+        const any = !!(srcProv || text);
+        p.src.hidden = !srcText;
+        if (srcText && p.src.textContent !== srcText) p.src.textContent = srcText;
+        p.tgt.hidden = !any;
+        const tgtShown = tgtText || '...';
+        if (any && p.tgt.textContent !== tgtShown) p.tgt.textContent = tgtShown;
+    }
+
+    /** The element that scrolls in single view (#transcript-content, or its parent). */
+    _flowScroller() {
+        const c = this.container;
+        const parent = c.parentElement;
+        return (c.scrollHeight > c.clientHeight || !parent) ? c : parent;
+    }
+
+    // ─── Bookkeeping ──────────────────────────────────────
+
+    _trim() {
+        // Drop the oldest in one splice (not shift() per item).
+        const excess = this.segments.length - MAX_SEGMENTS;
+        if (excess <= 0) return;
+        for (const seg of this.segments.splice(0, excess)) {
+            if (seg.status === 'original') this._pending--;
+            this._unmount(seg);
+        }
+    }
+
+    /** Oldest untranslated segment, found by walking back over the pending tail. */
+    _oldestPending() {
+        let seen = 0, oldest = null;
+        for (let i = this.segments.length - 1; i >= 0 && seen < this._pending; i--) {
+            if (this.segments[i].status === 'original') { oldest = this.segments[i]; seen++; }
+        }
+        return oldest;
+    }
+
+    /**
+     * Drop originals that never got a translation: older than
+     * STALE_ORIGINAL_MS, or beyond MAX_PENDING_ORIGINALS pending (oldest first).
+     */
+    _cleanupStaleOriginals() {
+        if (this._pending === 0) return;
+        const now = Date.now();
+        let seen = 0, kept = 0;
+        const total = this._pending;
+        for (let i = this.segments.length - 1; i >= 0 && seen < total; i--) {
+            const seg = this.segments[i];
+            if (seg.status !== 'original') continue;
+            seen++;
+            if (now - seg.createdAt > STALE_ORIGINAL_MS || kept >= MAX_PENDING_ORIGINALS) {
+                this._unmount(seg);
+                this.segments.splice(i, 1); // i is near the end: cheap
+                this._pending--;
+            } else {
+                kept++;
+            }
+        }
+    }
+
+    _resetState() {
+        if (this._frame) {
+            (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout)(this._frame);
+            this._frame = 0;
+        }
+        this.segments = [];
+        this._pending = 0;
+        this.provisionalText = '';
+        this.provisionalSpeaker = null;
+        this.provisionalLanguage = null;
+        this.sourceProvisionalText = '';
+        this.currentSpeaker = null;
+        this.currentLanguage = null;
+        this.lastConfidence = null;
+        this._labelSpeaker = null;
+        this._labelLang = null;
+        this._stick = null;
+        this._prov = null;
+        this._listeningEl = null;
+        this._statusEl = null;
+        this.contentEl = null;
+        this.srcPanel = null;
+        this.tgtPanel = null;
     }
 
     _removeListening() {
-        const indicator = this.container.querySelector('.listening-indicator');
-        if (indicator) indicator.remove();
+        if (!this._listeningEl) return;
+        this._listeningEl.remove();
+        this._listeningEl = null;
     }
 
-    _render() {
-        this._ensureContent();
-        this._trimSegments();
-
-        // Qwen Live Flash is translation-only (no source transcript channel),
-        // so force single-panel even when the user picked dual view — otherwise
-        // the source panel sits empty / shows dim provisional noise.
-        if (this.viewMode === 'dual' && this.provider !== 'qwen') {
-            this._renderDual();
-        } else {
-            this._renderSingle();
-        }
-    }
-
-    _renderSingle() {
-        let html = '';
-        let lastRenderedSpeaker = null;
-        let lastRenderedLang = null;
-
-        for (const seg of this.segments) {
-            // Speaker label
-            if (seg.speaker && seg.speaker !== lastRenderedSpeaker) {
-                html += `<span class="speaker-label">Speaker ${seg.speaker}:</span> `;
-                lastRenderedSpeaker = seg.speaker;
-            }
-
-            // Language badge
-            if (seg.language && seg.language !== lastRenderedLang) {
-                html += `<span class="lang-badge">${this._langEmoji(seg.language)}</span> `;
-                lastRenderedLang = seg.language;
-            }
-
-            if (seg.status === 'translated' && seg.translation) {
-                const confidenceClass = (seg.confidence !== null && seg.confidence < 0.7) ? ' low-confidence' : '';
-                const mark = seg.mark ? `<span class="seg-mark">${this._esc(seg.mark)}</span>` : '';
-                html += `<div class="seg-block">`;
-                html += `<div class="seg-translated${confidenceClass}">${mark}${this._esc(seg.translation)}</div>`;
-                html += `</div>`;
-            }
-            // Skip 'original' segments in single mode — wait for translation
-        }
-
-        if (this.provisionalText) {
-            if (this.provisionalSpeaker && this.provisionalSpeaker !== lastRenderedSpeaker) {
-                html += `<span class="speaker-label">Speaker ${this.provisionalSpeaker}:</span> `;
-            }
-            if (this.provisionalLanguage && this.provisionalLanguage !== lastRenderedLang) {
-                html += `<span class="lang-badge">${this._langEmoji(this.provisionalLanguage)}</span> `;
-            }
-            // OpenAI splits source/target streams: when sourceProvisionalText is
-            // present, provisionalText is already the translated stream → render
-            // as bright translated text. Qwen Live Flash is translation-only —
-            // provisionalText is the target language too. Soniox uses
-            // provisionalText for source ASR → keep dim italic.
-            const isTargetStream = this.sourceProvisionalText || this.provider === 'qwen';
-            const cls = isTargetStream ? 'seg-translated' : 'seg-provisional';
-            html += `<div class="seg-block"><div class="${cls}">${this._esc(this.provisionalText)}</div></div>`;
-        }
-
-        this.contentEl.innerHTML = html;
-        // #transcript-content is the scroller since the activity-shell redesign
-        // (its parent #transcript-container is overflow:hidden). Scroll whichever
-        // actually overflows so this stays correct if the layout shifts again.
-        const parent = this.container.parentElement;
-        const scroller = (this.container.scrollHeight > this.container.clientHeight || !parent)
-            ? this.container : parent;
-        this._smartScroll(scroller);
-    }
-
-    _renderDual() {
-        // Save scroll state before re-render
-        const oldSrcPanel = this.contentEl.querySelector('.panel-source');
-        const oldTgtPanel = this.contentEl.querySelector('.panel-translation');
-        const srcScrollState = oldSrcPanel ? this._getScrollState(oldSrcPanel) : { nearBottom: true, scrollTop: 0 };
-        const tgtScrollState = oldTgtPanel ? this._getScrollState(oldTgtPanel) : { nearBottom: true, scrollTop: 0 };
-
-        let srcHtml = '';
-        let tgtHtml = '';
-        let lastSpeaker = null;
-        let lastLang = null;
-
-        for (const seg of this.segments) {
-            let speakerHtml = '';
-            if (seg.speaker && seg.speaker !== lastSpeaker) {
-                speakerHtml = `<div class="speaker-label">Speaker ${seg.speaker}:</div>`;
-                lastSpeaker = seg.speaker;
-            }
-
-            let langHtml = '';
-            if (seg.language && seg.language !== lastLang) {
-                langHtml = `<span class="lang-badge">${this._langEmoji(seg.language)}</span> `;
-                lastLang = seg.language;
-            }
-
-            if (seg.status === 'translated' && seg.translation) {
-                const confidenceClass = (seg.confidence !== null && seg.confidence < 0.7) ? ' low-confidence' : '';
-                const mark = seg.mark ? `<span class="seg-mark">${this._esc(seg.mark)}</span>` : '';
-                srcHtml += speakerHtml + langHtml;
-                srcHtml += `<div class="seg-text">${this._esc(seg.original || '')}</div>`;
-                tgtHtml += speakerHtml ? '<div class="speaker-label">&nbsp;</div>' : '';
-                tgtHtml += `<div class="seg-text${confidenceClass}">${mark}${this._esc(seg.translation)}</div>`;
-            } else if (seg.status === 'original' && seg.original) {
-                srcHtml += speakerHtml + langHtml;
-                srcHtml += `<div class="seg-text pending">${this._esc(seg.original)}</div>`;
-                tgtHtml += speakerHtml ? '<div class="speaker-label">&nbsp;</div>' : '';
-                tgtHtml += `<div class="seg-text pending">...</div>`;
-            }
-        }
-
-        // Two providers feed provisional text differently:
-        // - Soniox: provisionalText is the source-language ASR (no separate source channel).
-        // - OpenAI Realtime: sourceProvisionalText is source ASR; provisionalText is target.
-        // Use explicit provider flag — checking !!sourceProvisionalText fails when
-        // whisper lags behind translation, dumping target deltas into the source panel.
-        if (this.sourceProvisionalText || this.provisionalText) {
-            const usingOpenAi = this.provider === 'openai';
-            const srcText = usingOpenAi ? this.sourceProvisionalText : this.provisionalText;
-            const tgtText = usingOpenAi ? this.provisionalText : '';
-            if (srcText) srcHtml += `<div class="seg-text pending">${this._esc(srcText)}</div>`;
-            tgtHtml += `<div class="seg-text pending">${tgtText ? this._esc(tgtText) : '...'}</div>`;
-        }
-
-        this.contentEl.innerHTML = `
-            <div class="panel-source">${srcHtml}</div>
-            <div class="panel-translation">${tgtHtml}</div>
-        `;
-
-        // Restore scroll: auto-scroll if was near bottom, otherwise keep position
-        const srcPanel = this.contentEl.querySelector('.panel-source');
-        const tgtPanel = this.contentEl.querySelector('.panel-translation');
-        if (srcPanel) {
-            if (srcScrollState.nearBottom) {
-                srcPanel.scrollTop = srcPanel.scrollHeight;
-            } else {
-                srcPanel.scrollTop = srcScrollState.scrollTop;
-            }
-        }
-        if (tgtPanel) {
-            if (tgtScrollState.nearBottom) {
-                tgtPanel.scrollTop = tgtPanel.scrollHeight;
-            } else {
-                tgtPanel.scrollTop = tgtScrollState.scrollTop;
-            }
-        }
-    }
-
-    _getScrollState(el) {
-        return {
-            nearBottom: (el.scrollHeight - el.scrollTop - el.clientHeight) < 100,
-            scrollTop: el.scrollTop
-        };
-    }
-
-    _smartScroll(el) {
-        const isNearBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 100;
-        if (isNearBottom) {
-            el.scrollTop = el.scrollHeight;
-        }
-    }
-
-    _trimSegments() {
-        let totalLen = 0;
-        for (const seg of this.segments) {
-            totalLen += (seg.translation || seg.original || '').length;
-        }
-        while (totalLen > this.maxChars && this.segments.length > 2) {
-            const removed = this.segments.shift();
-            totalLen -= (removed.translation || removed.original || '').length;
-        }
-    }
-
-    /**
-     * Remove stale original segments that never received translation.
-     * - Originals older than 10s are removed
-     * - Max 3 pending originals allowed (oldest dropped)
-     */
-    _cleanupStaleOriginals() {
-        const now = Date.now();
-        const STALE_MS = 10000; // 10 seconds
-        const MAX_PENDING = 3;
-
-        // Remove originals older than STALE_MS
-        this.segments = this.segments.filter(seg => {
-            if (seg.status === 'original' && (now - seg.createdAt) > STALE_MS) {
-                return false; // drop stale
-            }
-            return true;
-        });
-
-        // If still too many pending originals, drop oldest
-        let pending = this.segments.filter(s => s.status === 'original');
-        while (pending.length > MAX_PENDING) {
-            const oldest = pending.shift();
-            const idx = this.segments.indexOf(oldest);
-            if (idx !== -1) this.segments.splice(idx, 1);
-        }
-    }
-
-    _esc(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    /**
-     * Get language flag emoji + code
-     */
+    /** Language flag emoji + code. */
     _langEmoji(langCode) {
         const flags = {
             'en': '🇬🇧', 'ja': '🇯🇵', 'ko': '🇰🇷', 'zh': '🇨🇳',
@@ -629,4 +555,12 @@ export class TranscriptUI {
         const flag = flags[langCode] || '🌐';
         return `${flag} ${langCode.toUpperCase()}`;
     }
+}
+
+/** createElement + class + optional text (textContent — never HTML). */
+function el(tag, className, text) {
+    const e = document.createElement(tag);
+    e.className = className;
+    if (text !== undefined) e.textContent = text;
+    return e;
 }

@@ -178,7 +178,7 @@ class App {
         // Show engine picker on first launch
         this._maybeShowEnginePicker();
 
-        console.log('🌐 My Translator initialized');
+        console.log('🐱 MeowLaoshi initialized');
     }
 
     async _checkPlatformSupport() {
@@ -1657,7 +1657,7 @@ class App {
         if (!victim || ps.length <= 1) return;
         const msg = `Xoá hồ sơ "${victim.name}" cùng toàn bộ thuật ngữ của nó?`;
         const dlg = window.__TAURI__?.dialog;
-        const ok = dlg?.confirm ? await dlg.confirm(msg, { title: 'My Translator', kind: 'warning' }) : window.confirm(msg);
+        const ok = dlg?.confirm ? await dlg.confirm(msg, { title: 'MeowLaoshi', kind: 'warning' }) : window.confirm(msg);
         if (!ok) return;
         const remaining = ps.filter(p => p.id !== victim.id);
         try {

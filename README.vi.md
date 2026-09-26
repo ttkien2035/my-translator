@@ -1,4 +1,6 @@
-# My Translator — Lecture Edition
+# MeowLaoshi 猫老师 — Lecture Edition
+
+*Nghe giảng tiếng Trung, hiểu bằng tiếng Việt.* (Tên cũ: “My Translator — Lecture Edition”.)
 
 [English](README.md) · **Tiếng Việt**
 
@@ -89,20 +91,20 @@ Tên model của từng engine chỉnh được trong **Cài đặt › Model** 
 
    | Máy của bạn | File |
    |---|---|
-   | Mac chip Apple (M1/M2/M3/M4) | `MyTranslator_<phiên bản>_aarch64.dmg` |
-   | Mac Intel | `MyTranslator_<phiên bản>_x64.dmg` |
-   | Windows 10/11 | `MyTranslator_<phiên bản>_x64-setup.exe` |
+   | Mac chip Apple (M1/M2/M3/M4) | `MeowLaoshi_<phiên bản>_aarch64.dmg` |
+   | Mac Intel | `MeowLaoshi_<phiên bản>_x64.dmg` |
+   | Windows 10/11 | `MeowLaoshi_<phiên bản>_x64-setup.exe` |
 
    Xem chip:  → **Giới thiệu về máy Mac này** → dòng *Chip*.
 
-2. Mở file `.dmg`, kéo **My Translator** vào **Applications**, rồi eject.
+2. Mở file `.dmg`, kéo **MeowLaoshi** vào **Applications**, rồi eject.
 
 3. Mở app lần đầu. App phát hành **miễn phí**, không ký bằng Apple Developer ID, nên macOS chặn lần mở đầu:
    1. Mở app → macOS báo *không mở được* → bấm **Xong**.
    2. **Cài đặt hệ thống › Quyền riêng tư & Bảo mật** → kéo xuống → bấm **Vẫn mở** cạnh tên app → nhập mật khẩu máy.
    3. Chỉ làm một lần. Các bản sau cập nhật ngay trong app (**Cài đặt › Giới thiệu › Kiểm tra bản mới**).
 
-   (Người quen Terminal: `xattr -dr com.apple.quarantine /Applications/MyTranslator.app`.)
+   (Người quen Terminal: `xattr -dr com.apple.quarantine /Applications/MeowLaoshi.app`.)
 
 4. Cấp quyền khi được hỏi: **Micro** (bắt buộc để nghe giảng) và **Screen & System Audio Recording** (chỉ cần nếu dịch âm thanh từ máy — Zoom, video). Sau khi bật quyền, macOS có thể yêu cầu mở lại app.
 
@@ -200,8 +202,8 @@ Test tích hợp (`src-tauri/tests/*.rs`) dùng các seam trong `my_translator_l
 
 ```bash
 npm run build:local
-# macOS:   src-tauri/target/release/bundle/dmg/MyTranslator_<ver>_aarch64.dmg
-# Windows: src-tauri/target/release/bundle/nsis/MyTranslator_<ver>_x64-setup.exe
+# macOS:   src-tauri/target/release/bundle/dmg/MeowLaoshi_<ver>_aarch64.dmg
+# Windows: src-tauri/target/release/bundle/nsis/MeowLaoshi_<ver>_x64-setup.exe
 ```
 
 `build:local` tự ký ad-hoc trên macOS và, nếu máy không có khoá riêng của bộ tự cập nhật, bỏ qua các file cập nhật (app vẫn chạy bình thường). Không cần tài khoản Apple nào.
@@ -259,7 +261,7 @@ Máy đã cài sẽ thấy bản mới trong **Cài đặt › Giới thiệu �
 |---|---|---|
 | Cài đặt (API key, hồ sơ môn, từ điển) | `~/Library/Application Support/com.personal.translator/settings.json` (+ `.bak`) | `%APPDATA%\com.personal.translator\settings.json` |
 | Buổi học (Markdown + JSON) | `~/Library/Application Support/com.personal.translator/transcripts/` | `%APPDATA%\com.personal.translator\transcripts\` |
-| Model khử ồn/VAD, model Local, giọng Piper | `~/Library/Application Support/My Translator/{audio-models,local-models,…}` | `%APPDATA%\My Translator\…` |
+| Model khử ồn/VAD, model Local, giọng Piper (thư mục giữ tên cũ) | `~/Library/Application Support/My Translator/{audio-models,local-models,…}` | `%APPDATA%\My Translator\…` |
 
 Tất cả ở trên máy bạn. Chỉ engine cloud bạn chọn nhận âm thanh; không có máy chủ trung gian.
 
@@ -277,7 +279,7 @@ Tất cả ở trên máy bạn. Chỉ engine cloud bạn chọn nhận âm than
 | Terminal in `getApplicationProperty: called with invalid property` / `error messaging the mach port for IMKCFRunLoopWakeUpReliable` khi gõ chữ | Nhiễu từ Input Method Kit của macOS khi đang dùng bộ gõ (ví dụ Telex tiếng Việt); Electron, Qt, Java cũng in y như vậy, vô hại. App không sửa được và không cần sửa. |
 | Nhận dạng sai nhiều | Tắt "Khử tiếng ồn nền" và AGC (mặc định đã tắt); ngồi gần giảng viên hoặc dùng micro rời; chọn đúng hồ sơ môn để có từ điển |
 | Build lần đầu rất lâu | llama.cpp đang được biên dịch; chỉ lần đầu. Cần `cmake` + `clang` |
-| macOS không cho mở app / báo "bị hỏng" | Bản miễn phí chưa ký Developer ID — **Quyền riêng tư & Bảo mật › Vẫn mở**, hoặc `xattr -dr com.apple.quarantine /Applications/MyTranslator.app` |
+| macOS không cho mở app / báo "bị hỏng" | Bản miễn phí chưa ký Developer ID — **Quyền riêng tư & Bảo mật › Vẫn mở**, hoặc `xattr -dr com.apple.quarantine /Applications/MeowLaoshi.app` |
 
 Bạn có thể mở DevTools trong bản dev (`npm run dev`) để xem log `[Soniox]`, `[Mic]`, `[Local]`.
 

@@ -1,8 +1,8 @@
-# Hướng dẫn cài đặt và sử dụng My Translator
+# MeowLaoshi 猫老师
 
-*Bản 1.0 · cập nhật 26-09-2026*
+*Hướng dẫn cài đặt và sử dụng · bản 1.0 · cập nhật 26-09-2026*
 
-My Translator nghe giảng viên nói tiếng Trung và hiện bản dịch tiếng Việt ngay trên máy Mac, kèm ghi chú theo từng câu. Cài và thiết lập mất khoảng 10 phút, chỉ làm một lần.
+MeowLaoshi (猫老师, “thầy mèo”) nghe giảng viên nói tiếng Trung và hiện bản dịch tiếng Việt ngay trên máy Mac, kèm ghi chú theo từng câu. Cài và thiết lập mất khoảng 10 phút, chỉ làm một lần.
 
 **Cần có:** máy Mac chạy macOS 13 (Ventura) trở lên, mật khẩu đăng nhập máy, và API key Soniox do tác giả cung cấp nếu dịch qua mạng (xem mục 4.1).
 
@@ -14,24 +14,24 @@ Xem loại chip: bấm biểu tượng quả táo ở góc trên bên trái màn
 
 | Máy của bạn | File cần mở |
 |---|---|
-| Chip Apple (M1, M2, M3, M4, M5) | `MyTranslator_1.0.0_aarch64.dmg` |
-| Chip Intel | `MyTranslator_1.0.0_x64.dmg` |
+| Chip Apple (M1, M2, M3, M4, M5) | `MeowLaoshi_1.0.0_aarch64.dmg` |
+| Chip Intel | `MeowLaoshi_1.0.0_x64.dmg` |
 
 ## 2. Cài đặt và mở lần đầu
 
 App phát hành miễn phí, chưa ký bằng tài khoản Apple Developer, nên macOS chặn ở lần mở đầu. Đây là bình thường; bước 3 chỉ làm một lần.
 
-1. Nháy đúp file `.dmg`, kéo biểu tượng **MyTranslator** vào thư mục **Applications**.
-2. Bấm nút ⏏ cạnh “MyTranslator” ở thanh bên Finder để tháo đĩa. File `.dmg` có thể xoá sau bước này.
+1. Nháy đúp file `.dmg`, kéo biểu tượng **MeowLaoshi** vào thư mục **Applications**.
+2. Bấm nút ⏏ cạnh “MeowLaoshi” ở thanh bên Finder để tháo đĩa. File `.dmg` có thể xoá sau bước này.
 3. Mở app lần đầu:
-    1. Mở **Applications** → nháy đúp **MyTranslator**. macOS báo không mở được → bấm **Xong** (không bấm “Chuyển vào Thùng rác”).
+    1. Mở **Applications** → nháy đúp **MeowLaoshi**. macOS báo không mở được → bấm **Xong** (không bấm “Chuyển vào Thùng rác”).
     2. Mở **Cài đặt hệ thống** → **Quyền riêng tư & Bảo mật** → kéo xuống mục **Bảo mật**.
-    3. Bấm **Vẫn mở** cạnh dòng “MyTranslator bị chặn…” → nhập mật khẩu máy → **Mở**.
+    3. Bấm **Vẫn mở** cạnh dòng “MeowLaoshi bị chặn…” → nhập mật khẩu máy → **Mở**.
 4. Khi app hỏi quyền **Micrô**, bấm **Cho phép**. Không có quyền này thì app không nghe được giảng viên.
 5. Quyền **Ghi màn hình & âm thanh hệ thống** chỉ cần khi muốn dịch âm thanh phát từ máy (Zoom, video). Bật xong, macOS có thể yêu cầu mở lại app.
 
 > Quen dùng Terminal thì thay bước 3 bằng lệnh:
-> `xattr -dr com.apple.quarantine /Applications/MyTranslator.app`
+> `xattr -dr com.apple.quarantine /Applications/MeowLaoshi.app`
 
 ## 3. Chọn cách dịch
 
@@ -106,8 +106,8 @@ Nên xin phép giảng viên trước khi ghi âm trong lớp.
 
 | Hiện tượng | Cách xử lý |
 |---|---|
-| macOS báo “MyTranslator bị hỏng và không thể mở” | App không hỏng; đây là cảnh báo với app chưa ký. Làm lại bước 3 ở mục 2, hoặc chạy lệnh `xattr` ở cuối mục 2 |
-| Bấm Bắt đầu mà không hiện chữ | **Cài đặt hệ thống › Quyền riêng tư & Bảo mật › Micrô** → bật MyTranslator rồi mở lại app; kiểm tra nguồn đang là **🎤 Mic** |
+| macOS báo “MeowLaoshi bị hỏng và không thể mở” | App không hỏng; đây là cảnh báo với app chưa ký. Làm lại bước 3 ở mục 2, hoặc chạy lệnh `xattr` ở cuối mục 2 |
+| Bấm Bắt đầu mà không hiện chữ | **Cài đặt hệ thống › Quyền riêng tư & Bảo mật › Micrô** → bật MeowLaoshi rồi mở lại app; kiểm tra nguồn đang là **🎤 Mic** |
 | Soniox báo lỗi 401 hoặc 402 | Key bị dán thiếu hoặc không còn dùng được: dán lại key, nếu vẫn lỗi thì liên hệ tác giả |
 | Soniox không kết nối, hoặc báo “Mạng chậm” liên tục | Bật VPN hoặc đổi Wi-Fi; không có mạng thì chuyển sang **Local** |
 | Local báo “cần tải model” | Làm mục 4.3: tải cả model trong **Micro** và trong **Model › Local** |

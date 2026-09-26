@@ -65,11 +65,11 @@ if (identifier) {
   // Dev override: distinct id + " Dev" product name + ad-hoc signing ("-"). Ad-hoc lets a
   // local dev build run without any certificate, and the " Dev" name makes the app distinct
   // in Finder and in the macOS permission lists.
-  const baseName = readConfValue('productName') || 'MyTranslator';
+  const baseName = readConfValue('productName') || 'MeowLaoshi';
   const devName = baseName.endsWith(' Dev') ? baseName : `${baseName} Dev`;
   // Ad-hoc changes on every rebuild, so macOS Screen-Recording permission does NOT persist
   // across rebuilds. Set APP_SIGNING_IDENTITY in .env to a STABLE cert name (e.g. a
-  // self-signed "MyTranslator Dev" cert) to make the permission stick.
+  // self-signed "MeowLaoshi Dev" cert) to make the permission stick.
   const signingIdentity =
     process.env.APP_SIGNING_IDENTITY || readEnvValue('APP_SIGNING_IDENTITY') || '-';
   merge(override, { identifier, productName: devName, bundle: { macOS: { signingIdentity } } });

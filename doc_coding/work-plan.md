@@ -285,3 +285,11 @@ Số liệu đầy đủ: README › *Kết quả đo model Local* (10 model nh�
 - **Log:** `IMKCFRunLoopWakeUpReliable` / `getApplicationProperty: called with invalid property` là nhiễu của Input Method Kit macOS khi có bộ gõ hoạt động; Electron (issue #45002), Qt và các app Java báo y như vậy, bản `.app` cũng in, không tắt được từ phía app. Đã ghi vào README › Troubleshooting (Anh/Việt). Không cần Kiên thử (a)/(b)/(c) nữa.
 - **Chức năng (mục 3–4 của QA):** rà JS: handler phím tắt toàn cục (`app.js`), ô tên hồ sơ (Enter xác nhận) và menu ⋯ (Escape đóng) chưa bỏ qua sự kiện khi bộ gõ đang ghép chữ. Nay cả ba bỏ qua khi `e.isComposing || e.keyCode === 229`. Các handler còn lại vốn đã bỏ qua khi tiêu điểm nằm trong INPUT/TEXTAREA. Không có chỗ nào ghi `textarea.value` trong lúc gõ (chỉ khi bấm ⌘⇧C).
 - **QA/Kiên kiểm trên Mac (tiêu chí đóng bug):** gõ "Tiếng Việt có dấu đầy đủ" bằng Simple Telex vào ô ghi chú (⌘⇧N), ô ghi chú ôn bài và ô tên hồ sơ (kết thúc bằng Enter): chữ đúng, không lặp, không mất dấu, không có chữ gạch chân kẹt lại. Nếu vẫn lỗi, ghi rõ ô nào và chuỗi gõ.
+
+---
+
+### Đổi tên app: My Translator → MeowLaoshi 猫老师 — đã làm (kỹ sư trưởng, 2026-09-26; Kiên chốt tên)
+
+- Đổi: `productName` và tiêu đề cửa sổ (`tauri.conf.json`), `<title>`, mục Giới thiệu, hộp thoại xác nhận, README (Anh/Việt), changelog v1.0.0, hướng dẫn cài đặt (Markdown + PDF), hướng dẫn TTS. File build tự đổi theo: `MeowLaoshi_1.0.0_aarch64.dmg`, `/Applications/MeowLaoshi.app`, bản dev là "MeowLaoshi Dev".
+- **Giữ nguyên có chủ đích** (để không mất dữ liệu và không hỏng cập nhật): `identifier` `com.personal.translator` (settings, API key, hồ sơ, buổi học, localStorage của WebView), thư mục model `~/Library/Application Support/My Translator` (có chú thích trong `commands/mod.rs`), repo GitHub `ttkien2035/my-translator` (endpoint updater), tên gói Cargo/npm `my-translator`, dòng ghi công bản gốc (MIT).
+- QA trên Mac: build lại, kiểm tên app trong Dock/Finder/menu, mục Giới thiệu; app đã có dữ liệu từ bản cũ vẫn thấy API key, hồ sơ, buổi học và model đã tải (không phải tải lại). Quyền Micro có thể phải cấp lại vì tên bundle đổi.

@@ -1,4 +1,6 @@
-# My Translator — Lecture Edition
+# MeowLaoshi 猫老师 — Lecture Edition
+
+*Listen to lectures in Chinese, understand them in Vietnamese.* (Formerly “My Translator — Lecture Edition”.)
 
 **English** · [Tiếng Việt](README.vi.md)
 
@@ -94,20 +96,20 @@ Each engine's model name can be changed in **Cài đặt › Model** (Settings �
 
    | Your machine | File |
    |---|---|
-   | Mac with Apple silicon (M1/M2/M3/M4) | `MyTranslator_<version>_aarch64.dmg` |
-   | Intel Mac | `MyTranslator_<version>_x64.dmg` |
-   | Windows 10/11 | `MyTranslator_<version>_x64-setup.exe` |
+   | Mac with Apple silicon (M1/M2/M3/M4) | `MeowLaoshi_<version>_aarch64.dmg` |
+   | Intel Mac | `MeowLaoshi_<version>_x64.dmg` |
+   | Windows 10/11 | `MeowLaoshi_<version>_x64-setup.exe` |
 
    To check your chip:  → **About This Mac** → *Chip*.
 
-2. Open the `.dmg`, drag **My Translator** into **Applications**, then eject it.
+2. Open the `.dmg`, drag **MeowLaoshi** into **Applications**, then eject it.
 
 3. First launch. Releases are **free**, not signed with an Apple Developer ID, so macOS blocks the first launch:
    1. Open the app → macOS says it can't be opened → click **Done**.
    2. **System Settings › Privacy & Security** → scroll down → **Open Anyway** next to the app → enter your password.
    3. You only do this once. Later versions update from inside the app (**Cài đặt › Giới thiệu › Kiểm tra bản mới**, Settings › About › Check for updates).
 
-   (From Terminal: `xattr -dr com.apple.quarantine /Applications/MyTranslator.app`.)
+   (From Terminal: `xattr -dr com.apple.quarantine /Applications/MeowLaoshi.app`.)
 
 4. Grant permissions when asked: **Microphone** (required for lectures) and **Screen & System Audio Recording** (only to translate audio playing on the Mac, e.g. Zoom or videos). macOS may ask you to reopen the app after granting them.
 
@@ -220,8 +222,8 @@ Integration tests (`src-tauri/tests/*.rs`) use the seams in `my_translator_lib::
 
 ```bash
 npm run build:local
-# macOS:   src-tauri/target/release/bundle/dmg/MyTranslator_<ver>_aarch64.dmg
-# Windows: src-tauri/target/release/bundle/nsis/MyTranslator_<ver>_x64-setup.exe
+# macOS:   src-tauri/target/release/bundle/dmg/MeowLaoshi_<ver>_aarch64.dmg
+# Windows: src-tauri/target/release/bundle/nsis/MeowLaoshi_<ver>_x64-setup.exe
 ```
 
 `build:local` ad-hoc signs on macOS. If the auto-updater's private key isn't available, it skips the update files; the app itself is unaffected. No Apple account is needed.
@@ -279,7 +281,7 @@ Installed copies see the new version under **Cài đặt › Giới thiệu › 
 |---|---|---|
 | Settings (API keys, course profiles, glossaries) | `~/Library/Application Support/com.personal.translator/settings.json` (+ `.bak`) | `%APPDATA%\com.personal.translator\settings.json` |
 | Sessions (Markdown + JSON) | `~/Library/Application Support/com.personal.translator/transcripts/` | `%APPDATA%\com.personal.translator\transcripts\` |
-| Noise/VAD models, Local models, Piper voices | `~/Library/Application Support/My Translator/{audio-models,local-models,…}` | `%APPDATA%\My Translator\…` |
+| Noise/VAD models, Local models, Piper voices (folder keeps the pre-rename name) | `~/Library/Application Support/My Translator/{audio-models,local-models,…}` | `%APPDATA%\My Translator\…` |
 
 Everything stays on your machine. Only the cloud engine you choose receives audio; there is no intermediate server.
 
@@ -297,7 +299,7 @@ Everything stays on your machine. Only the cloud engine you choose receives audi
 | Terminal shows `getApplicationProperty: called with invalid property` / `error messaging the mach port for IMKCFRunLoopWakeUpReliable` while typing | Noise from macOS's Input Method Kit when an input method (e.g. Vietnamese Telex) is active; it appears in Electron, Qt and Java apps too and is harmless. Nothing to fix in the app. |
 | Recognition makes many mistakes | Keep noise suppression and AGC off (the default); sit closer or use an external mic; pick the right course profile so its glossary applies |
 | The first build takes very long | llama.cpp is compiling; first time only. Needs `cmake` + `clang` |
-| macOS won't open the app / says it is "damaged" | Free build without a Developer ID — **Privacy & Security › Open Anyway**, or `xattr -dr com.apple.quarantine /Applications/MyTranslator.app` |
+| macOS won't open the app / says it is "damaged" | Free build without a Developer ID — **Privacy & Security › Open Anyway**, or `xattr -dr com.apple.quarantine /Applications/MeowLaoshi.app` |
 
 In a dev build (`npm run dev`), DevTools shows the `[Soniox]`, `[Mic]` and `[Local]` logs.
 

@@ -1,7 +1,7 @@
 [package]
 name = "my-translator"
 version = "1.0.0"
-description = "My Translator — Lecture Edition: real-time lecture translation (Chinese → Vietnamese) with notes"
+description = "MeowLaoshi (猫老师): real-time lecture translation (Chinese → Vietnamese) with notes"
 authors = ["ttkien2035", "phucnt (original author)"]
 edition = "2021"
 

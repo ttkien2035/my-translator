@@ -43,7 +43,7 @@ def ensure_fonts() -> str:
 CSS = """
 @page {
   size: A4; margin: 16mm 17mm 16mm 17mm;
-  @bottom-left { content: "My Translator — Hướng dẫn cài đặt và sử dụng"; font: 8pt 'Be Vietnam Pro'; color: #8a8f98; }
+  @bottom-left { content: "MeowLaoshi 猫老师 — Hướng dẫn cài đặt và sử dụng"; font: 8pt 'Be Vietnam Pro'; color: #8a8f98; }
   @bottom-right { content: counter(page) " / " counter(pages); font: 8pt 'Be Vietnam Pro'; color: #8a8f98; }
 }
 @page :first { @bottom-left { content: none; } }
@@ -79,7 +79,7 @@ def main() -> None:
     # The first horizontal rule separates the intro block from section 1 only visually.
     body = markdown.markdown(text, extensions=["tables", "sane_lists"], output_format="html")
     # python-markdown keeps "4-space" nested ordered lists; nothing else to post-process.
-    html = f"<!doctype html><html lang='vi'><head><meta charset='utf-8'><title>Hướng dẫn cài đặt và sử dụng My Translator</title>" \
+    html = f"<!doctype html><html lang='vi'><head><meta charset='utf-8'><title>Hướng dẫn cài đặt và sử dụng MeowLaoshi</title>" \
            f"<style>{ensure_fonts()}\n{CSS}</style></head><body>{body}</body></html>"
     HTML(string=html, base_url=str(ROOT)).write_pdf(OUT, pdf_variant="pdf/ua-1")
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size // 1024} KB)")

@@ -1,6 +1,6 @@
 # TTS (Text-to-Speech) Guide
 
-My Translator can **read translations aloud** as they appear — like having a personal interpreter. Three providers available:
+MeowLaoshi can **read translations aloud** as they appear — like having a personal interpreter. Three providers available:
 
 ## Provider Comparison
 
@@ -48,7 +48,7 @@ Local TTS runs **Piper** neural voices entirely on your machine via sherpa-onnx 
 
 ### What is it?
 
-Edge TTS uses the same neural speech engine behind Microsoft Edge's **"Read Aloud"** feature. My Translator connects to the same service to read translations.
+Edge TTS uses the same neural speech engine behind Microsoft Edge's **"Read Aloud"** feature. MeowLaoshi connects to the same service to read translations.
 
 - **No API key needed** — works out of the box
 - **No explicit limits** — free for personal use

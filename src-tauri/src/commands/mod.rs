@@ -30,5 +30,7 @@ pub(crate) fn session_id_from_headers(headers: &http::HeaderMap) -> Result<u64, 
 pub(crate) fn app_support_dir() -> std::path::PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
+        // The pre-rename name, kept on purpose: downloaded models live here and
+        // renaming the app (now MeowLaoshi) must not orphan them.
         .join("My Translator")
 }
